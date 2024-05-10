@@ -1,0 +1,67 @@
+{
+    "aggs": {
+      "2": {
+        "terms": {
+          "field": "msgClassName",
+          "size": 50,
+          "order": {
+            "_count": "desc"
+          }
+        }
+      }
+    },
+    "size": 0,
+    "_source": {
+      "excludes": []
+    },
+    "stored_fields": [
+      "*"
+    ],
+    "script_fields": {},
+    "docvalue_fields": [
+      {
+        "field": "insertedDate",
+        "format": "date_time"
+      },
+      {
+        "field": "logDate",
+        "format": "date_time"
+      },
+      {
+        "field": "normalDate",
+        "format": "date_time"
+      }
+    ],
+    "query": {
+      "bool": {
+        "must": [
+          {
+            "query_string": {
+              "query": "entityName:\"ensa ti\"",
+              "analyze_wildcard": true,
+              "default_field": "*"
+            }
+          },
+          {
+            "query_string": {
+              "query": "entityName:\"ensa ti\"",
+              "analyze_wildcard": true,
+              "default_field": "*"
+            }
+          },
+          {
+            "range": {
+              "normalDate": {
+                "gte": 1714536000000,
+                "lte": 1717214399999,
+                "format": "epoch_millis"
+              }
+            }
+          }
+        ],
+        "filter": [],
+        "should": [],
+        "must_not": []
+      }
+    }
+  }

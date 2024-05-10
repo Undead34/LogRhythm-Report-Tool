@@ -1,0 +1,90 @@
+{
+    "version": true,
+    "size": 500,
+    "sort": [
+        {
+            "normalDate": {
+                "order": "desc",
+                "unmapped_type": "boolean"
+            }
+        }
+    ],
+    "_source": {
+        "excludes": []
+    },
+    "aggs": {
+        "2": {
+            "date_histogram": {
+                "field": "normalDate",
+                "interval": "30s",
+                "time_zone": "America/New_York",
+                "min_doc_count": 1
+            }
+        }
+    },
+    "stored_fields": [
+        "*"
+    ],
+    "script_fields": {},
+    "docvalue_fields": [
+        {
+            "field": "insertedDate",
+            "format": "date_time"
+        },
+        {
+            "field": "logDate",
+            "format": "date_time"
+        },
+        {
+            "field": "normalDate",
+            "format": "date_time"
+        }
+    ],
+    "query": {
+        "bool": {
+            "must": [
+                {
+                    "match_all": {}
+                },
+                {
+                    "match_phrase": {
+                        "commonEventName": {
+                            "query": "netready - bad password"
+                        }
+                    }
+                },
+                {
+                    "match_phrase": {
+                        "entityName": {
+                            "query": "farmatodo"
+                        }
+                    }
+                },
+                {
+                    "range": {
+                        "normalDate": {
+                            "gte": 1714165205245,
+                            "lte": 1714166105245,
+                            "format": "epoch_millis"
+                        }
+                    }
+                }
+            ],
+            "filter": [],
+            "should": [],
+            "must_not": []
+        }
+    },
+    "highlight": {
+        "pre_tags": [
+            "@kibana-highlighted-field@"
+        ],
+        "post_tags": [
+            "@/kibana-highlighted-field@"
+        ],
+        "fields": {
+            "*": {}
+        },
+        "fragment_size": 2147483647
+    }
+}
