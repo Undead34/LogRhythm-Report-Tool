@@ -1,8 +1,21 @@
 from elasticsearch import Elasticsearch
-import os
+from prettytable import PrettyTable
+
 import glob
 import json
+import os
 
+
+class Package():
+    def __init__(self, elastic) -> None:
+        self._elastic: Elastic = elastic
+        self.query = None
+
+    def run(self):
+        self._elastic.search(self.query)
+
+    def parser():
+        pass
 
 class Elastic():
     def __init__(self) -> None:
@@ -32,12 +45,63 @@ class Elastic():
             print("An error occurred while executing the {0} file, please check: {1}".format(
                 file, e))
 
-    def run(self) -> None:
+    def run(self) -> list[Package]:
+        querys = []
+
         for q in self._querys:
-            self.search(q)
+            p = Package(self)
+            p.query = q
+            querys.append(p)
+
+        return querys
 
     def search(self, query: dict) -> None:
+        config: dict = query.get("config")
+        query: dict = query.get("query")
+
         r: dict = self._esearch.search(index="logs-*", body=query)
-        hits: dict = r.get("hits")
-        hist_values: list = hits.get("hits")
-        print(hist_values[0])
+
+        return r
+
+
+class Normalizer():
+    def __init__(self) -> None:
+        pass
+
+    @staticmethod
+    def table():
+        pass
+
+    @staticmethod
+    def set_xpath(xpath: str, element):
+        paths = xpath.split(".")
+
+        for p in paths:
+            if element is None:
+                break
+            element = element.get(p, None)
+
+        return element
+
+    @staticmethod
+    def set_xpath(xpath: str, element, value):
+        paths = xpath.split(".")
+        for p in paths[:-1]:  # Recorremos todos los elementos excepto el último
+            if element is None:
+                break
+            element = element.get(p, None)
+
+        if element is not None:
+            # Establecemos el valor en el último elemento del camino
+            element[paths[-1]] = value
+
+# data = Normalizer.set_xpath(config.get("xpath"), r)
+# print(data)
+
+# # table = PrettyTable()
+
+# # table.field_names = ["Key", "#"]
+# # for x in data:
+# #     table.add_row([x.get("key"), x.get("doc_count")])
+
+# # print(table)

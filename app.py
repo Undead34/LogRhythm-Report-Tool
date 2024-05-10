@@ -8,18 +8,32 @@ if not sys.version_info >= (3, 7):
     print("LogRhythm Report Tool requires Python 3.7 or higher.")
     sys.exit(1)
 
-# from utils.test import check_environ_vars, check_permisions, check_first_start, check_connection
-# from utils.setup import setup
-
+from utils import constants, get_file_name
 from modules.report import Report
 from modules.elastic import Elastic
 
+
+# La estrategia más eficiente es preparar el terreno y hacer las consultas mientras
+# liberas memoria, así también puedes tomar decisiones sobre la marcha.
 def bootstrap():
     elastic = Elastic()
     elastic.loadQuerys("./querys")
-    elastic.run()
+    querys = elastic.run()
 
-    report = Report()
+    signature = {
+        "author": "Netready Solutions",
+        "producer": "LogRhythm Report Tool - Gabriel Maizo/NetReady",
+        "creator": "Netready Solutions © 2024",
+        "subject": "Netready Solutions - LogRhythm",
+        "title": "Hola",
+        "keywords": ["LogRhythm", "Netready Solutions", "Report", "Confidential"],
+    }
+
+    output = get_file_name("{title} - {stime}", signature)
+
+    report = Report(querys, output, signature)
+    report.build()
+    print("Reporte generado: ", output)
 
 
 if __name__ == "__main__":
