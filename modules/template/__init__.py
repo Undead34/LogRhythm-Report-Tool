@@ -11,7 +11,8 @@ from reportlab.pdfbase import pdfmetrics
 import shutil
 import os
 
-from .theme import Theme
+
+from .theme import Theme, ParagraphStyles
 from .canvas import Canvas
 from utils import constants
 

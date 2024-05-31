@@ -5,6 +5,7 @@ __pycache__/
 logs/
 temp/
 output/
+examples/
 
 # C extensions
 *.so

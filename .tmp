@@ -1,0 +1,669 @@
+# DECLARE @EntityID INT = 4;  -- Reemplaza 4 con el ID de la entidad que desees filtrar
+
+# WITH FilteredAlarms AS (
+#     SELECT 
+#         a.AlarmID,
+#         a.EntityID,
+#         a.AlarmRuleID,
+#         a.AlarmDate,
+#         a.DateInserted,
+#         a.DateUpdated,
+#         a.AlarmStatus
+#     FROM LogRhythm_Alarms.dbo.Alarm a WITH (NOLOCK)
+#     WHERE a.EntityID = @EntityID
+#     AND a.DateInserted BETWEEN '2024-05-30T06:46:32Z' AND '2024-05-30T12:46:32Z'
+# ),
+# FilteredAlarmToMARCMsg AS (
+#     SELECT
+#         atm.AlarmID,
+#         atm.MARCMsgID
+#     FROM LogRhythm_Alarms.dbo.AlarmToMARCMsg atm WITH (NOLOCK)
+#     WHERE atm.AlarmID IN (
+#         SELECT AlarmID
+#         FROM FilteredAlarms
+#     )
+# ),
+# FilteredAlarmMetrics AS (
+#     SELECT
+#         am.AlarmID,
+#         am.GeneratedOn,
+#         am.ClosedOn,
+#         am.ModifiedOn
+#     FROM LogRhythm_Alarms.dbo.AlarmMetrics am WITH (NOLOCK)
+#     WHERE am.AlarmID IN (
+#         SELECT AlarmID
+#         FROM FilteredAlarms
+#     )
+# )
+# SELECT 
+#     fa.AlarmID,
+#     fa.EntityID,
+#     fa.AlarmRuleID,
+#     fa.AlarmDate,
+#     fa.DateInserted,
+#     fa.DateUpdated,
+#     fa.AlarmStatus,
+#     atm.MARCMsgID,
+#     am.GeneratedOn,
+#     am.ClosedOn,
+#     am.ModifiedOn
+# FROM FilteredAlarms fa
+# LEFT JOIN FilteredAlarmToMARCMsg atm ON fa.AlarmID = atm.AlarmID
+# LEFT JOIN FilteredAlarmMetrics am ON fa.AlarmID = am.AlarmID
+# ORDER BY fa.AlarmID
+
+
+
+
+
+
+
+    # @staticmethod
+    # def image(src: str, align="CENTER", **kwargs):
+    #     return Image(src, hAlign=align, **kwargs)
+
+    # def line_to(self, x: float, y: float, position: tuple[int] | bool):
+    #     h = 0
+    #     k = 0
+
+    #     if type(position) == tuple:
+    #         h = position[0]
+    #         k = position[1]
+    #     else:
+    #         h = self.report.width - (pow(inch, 2))
+
+    #     d = Drawing(self.report.width, self.report.height)
+    #     line = Line(x, y, h, k)
+
+    #     line.strokeColor = self.theme.NetReadyDarkBlue
+    #     line.strokeWidth = 1
+
+    #     d.add(line)
+
+    #     return d
+
+
+
+    # def figure(self, image_src: str, title: str):
+    #     a = self.image(image_src,
+    #                    width=15.59 * cm,
+    #                    height=8.52 * cm,
+    #                    align="CENTER")
+
+    #     b = Paragraph(title, self.theme.get_style(
+    #         ParagraphStyles.NR_TEXTO_NGRAFICO))
+
+    #     return [a, b]
+
+
+
+
+def _content(self):
+        t = self.theme
+        e = self.elements
+        c = self.components
+
+        alarms = self._top_status_alarms()
+
+        # Dividir el DataFrame en una lista de DataFrames de máximo 30 filas cada uno
+        chunk_size = 30
+        df_list = [alarms.iloc[i:i + chunk_size]
+                   for i in range(0, len(alarms), chunk_size)]
+
+        for df in df_list:
+            figure = self.charts.chart_stacked_bar(df)
+            e += c.figure(figure,
+                          "Figure X: Distribución de Alarmas por Tipo y Estado")
+
+        graph_explanation = [
+            """
+                La gráfica de barras apiladas muestra la distribución de las alarmas categorizadas por su tipo y estado. Se han excluido las alarmas en los estados "New" y "OpenAlarm" para enfocar el análisis en los estados más relevantes. La escala logarítmica en el eje Y permite una mejor visualización de las diferencias significativas en la cantidad de alarmas.
+            """,
+            f"""
+                <font face=\"Arial-Narrow-Bold\">Eje X (horizontal):</font> Representa los diferentes tipos de alarmas registradas en el SIEM. Cada etiqueta en el eje X corresponde a un tipo específico de alarma, como "{alarms.sample().index[0]}" o "{alarms.sample().index[0]}".<br/>
+                <font face=\"Arial-Narrow-Bold\">Eje Y (vertical):</font> Muestra la cantidad de alarmas en una escala logarítmica. Esta escala es útil para visualizar datos con una gran variabilidad en magnitud, permitiendo ver tanto las alarmas más frecuentes como las menos frecuentes en la misma gráfica.<br/>
+                <font face=\"Arial-Narrow-Bold\">Barras apiladas:</font> Cada barra apilada representa un tipo de alarma específico. Las secciones dentro de cada barra indican los distintos estados de las alarmas, como "Auto Closed", "False Positive", "Monitor" y "Reported". Esto facilita la identificación de la proporción de cada estado dentro de cada tipo de alarma.<br/>
+                <font face=\"Arial-Narrow-Bold\">Leyenda:</font> La leyenda en la parte superior izquierda identifica los colores que corresponden a cada estado de alarma. Esto permite interpretar rápidamente la gráfica, diferenciando visualmente entre los distintos estados representados.
+            """,
+            """
+                <font face=\"Arial-Narrow-Bold\">Interpretación de datos:</font> Para interpretar la gráfica, observa la altura total de cada barra para entender la cantidad total de alarmas de cada tipo. Las secciones coloreadas dentro de cada barra muestran la distribución de los estados de las alarmas. Por ejemplo, una barra alta con una gran sección de "False Positive" indica que ese tipo de alarma frecuentemente se clasifica como falso positivo.<br/>
+                <font face=\"Arial-Narrow-Bold\">Análisis de patrones:</font> Esta gráfica es útil para identificar patrones en la distribución de alarmas. Si un tipo de alarma muestra una gran proporción de alarmas en estado "Reported", esto puede indicar un área que requiere atención especial. Del mismo modo, una alta proporción de "Auto Closed" puede sugerir que ese tipo de alarma se resuelve automáticamente con frecuencia.
+            """
+        ]
+
+        for p in graph_explanation:
+            e += Paragraph(p, t.get_style(ParagraphStyles.NR_TEXTO_1))
+
+        # Crear y agregar la tabla con los datos de _top_status_alarms
+        alarm_status_data = alarms.reset_index()
+        table_data = [alarm_status_data.columns.to_list()] + \
+            alarm_status_data.values.tolist()
+
+        e += c.table(table_data)
+
+        e += Paragraph("Tabla X: Distribución de Alarmas por Tipo y Estado",
+                       t.get_style(ParagraphStyles.NR_TEXTO_NGRAFICO))
+
+        figure = self.charts.chart_histogram(self._top_alarms())
+        e += c.figure(figure,
+                      "Figure X: Evolución Temporal de los Eventos de Alarma")
+
+        graph_explanation = [
+            """
+                Este gráfico proporciona una visión clara de cómo han evolucionado las diferentes alarmas a lo largo del tiempo, permitiendo identificar fácilmente las tendencias y los picos en los datos. Cada línea en el gráfico representa un tipo de alarma diferente, y el color de la línea corresponde al tipo de alarma. El número total de eventos para cada tipo de alarma se indica en la leyenda junto al nombre de la alarma.
+            """,
+            """
+                El eje <font face=\"Arial-Narrow-Bold\">x</font> representa la fecha, con <font face=\"Arial-Narrow-Bold\">ticks cada tres días</font>. El eje <font face=\"Arial-Narrow-Bold\">y</font> representa el número de eventos de alarma, y está en una escala lineal.
+                Los puntos máximos de cada línea están resaltados con anotaciones que indican el número máximo de eventos para ese tipo de alarma. Además, para las <font face=\"Arial-Narrow-Bold\">alarmas que solo ocurrieron en un día</font>, se ha dibujado una línea vertical punteada en el día correspondiente.
+            """,
+            """
+                Las alarmas con menos de 100 eventos se han agrupado en una categoría llamada <font face=\"Arial-Narrow-Bold\">‘Others’</font>. Esto ayuda a mantener el gráfico limpio y enfocado en las alarmas con un mayor número de eventos.
+            """
+        ]
+
+        for p in graph_explanation:
+            e += Paragraph(p, t.get_style(ParagraphStyles.NR_TEXTO_1))
+
+    def _top_status_alarms(self):
+        # Obtener datos de la base de datos
+        df, _ = self.database.alarms_per_entity_table()
+        df['AlarmDate'] = pd.to_datetime(df['AlarmDate'])
+
+        # Excluir las alarmas con estado "New" y "OpenAlarm"
+        df_filtered = df[~df['AlarmStatus'].isin(
+            ['New', 'OpenAlarm'])]
+
+        # Agrupar los datos
+        alarms = df_filtered.groupby(['AlarmName', 'AlarmStatus'])
+        return alarms.size().unstack(fill_value=0)
+
+    def _top_alarms(self) -> pd.DataFrame:
+        df, _ = self.database.alarms_per_entity_table()
+        df['AlarmDate'] = pd.to_datetime(df['AlarmDate'])
+
+        # Convertimos la fecha a YYYY-MM-DD
+        df['AlarmDate'] = df['AlarmDate'].dt.floor('d')
+
+        # Agrupamos por fecha y nombre
+        by_date_and_name = df.groupby(['AlarmDate', 'AlarmName'])
+        by_date_and_name = by_date_and_name.size().reset_index(name='Counts')
+
+        # Crear un nuevo DataFrame donde los conteos sean menores a 100
+        than = 100
+        less_than = by_date_and_name[by_date_and_name['Counts'] < than]
+        print(less_than)
+
+        # Agrupar por 'AlarmDate' y sumar los conteos
+        others = less_than.groupby('AlarmDate')['Counts'].sum().reset_index()
+        others['AlarmName'] = 'Others'
+
+        # Eliminar las filas con conteos menores a than del DataFrame original
+        by_date_and_name = by_date_and_name[by_date_and_name['Counts'] >= than]
+
+        # Agregar el nuevo DataFrame al original
+        by_date_and_name = pd.concat(
+            [by_date_and_name, others], ignore_index=True)
+
+        return by_date_and_name
+
+
+
+
+
+
+
+
+
+
+
+
+
+        # figure = self.charts.chart_histogram(self._top_alarms())
+        # e += c.figure(figure,
+        #               "Figure X: Evolución Temporal de los Eventos de Alarma")
+
+        # e += Paragraph("1.1 esta es una tabla de prueba con formato NetReady".upper(),
+        #                t.get_style(ParagraphStyles.NR_TITULO_2))
+
+        # data = [
+        #     ['Header 1', 'Header 2', 'Header 3'],
+        #     ['Row 1, Col 1', 'Row 1, Col 2', 'Row 1, Col 3'],
+        #     ['Row 2, Col 1', 'Row 2, Col 2', 'Row 2, Col 3'],
+        #     ['Row 3, Col 1', 'Row 3, Col 2', 'Row 3, Col 3']
+        # ]
+
+        # e += c.table(data)
+
+        # e += Paragraph("Tabla X: Lorem, ipsum dolor sit amet consectetur",
+        #                t.get_style(ParagraphStyles.NR_TEXTO_NGRAFICO))
+
+        # e += PageBreak()
+
+
+# # Truncar los nombres de las alarmas
+# df['ShortAlarmName'] = df['AlarmName'].apply(lambda x: x[:20] + '...' if len(x) > 20 else x)
+
+# # Agrupar los datos
+# alarm_counts = df.groupby(['AlarmStatus', 'ShortAlarmName']).size().unstack(fill_value=0)
+
+# # Crear la gráfica de barras apiladas
+# fig, ax = plt.subplots(figsize=(12, 8))
+# alarm_counts.plot(kind='bar', stacked=True, ax=ax, width=0.8)
+
+# # Personalizar la gráfica
+# ax.set_title('Distribución de Alarmas por Tipo y Estado')
+# ax.set_xlabel('Estado de la Alarma')
+# ax.set_ylabel('Cantidad')
+# ax.set_xticklabels(ax.get_xticklabels(), rotation=0)
+# ax.legend(title='Tipo de Alarma', bbox_to_anchor=(1.05, 1), loc='upper left')
+
+# # Añadir una segunda leyenda para los nombres completos de las alarmas
+# handles, labels = ax.get_legend_handles_labels()
+# short_to_full_name = {short: full for short, full in zip(df['ShortAlarmName'], df['AlarmName'])}
+# full_legend_labels = [short_to_full_name[short] for short in labels]
+# legend2 = plt.legend(handles, full_legend_labels, title='Nombres Completos de Alarmas', bbox_to_anchor=(1.05, 0.5), loc='center left')
+
+# # Mostrar la gráfica
+# plt.tight_layout()
+# plt.show()
+
+        # ================================================================
+
+
+
+
+
+
+
+
+
+
+
+import numpy as np
+import pandas as pd
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+import seaborn as sns
+import seaborn.objects as so
+
+
+class Charts():
+    def __init__(self) -> None:
+        pass
+
+    def chart_histogram(self, data):
+        # Convertir los datos a un DataFrame de pandas
+        columns = ['Entity', 'AlarmDate',
+                   'AlarmID', 'AlarmName', 'AlarmStatus']
+
+        df = pd.DataFrame([tuple(row) for row in data], columns=columns)
+
+        # Convertir la columna 'AlarmDate' a datetime
+        df['AlarmDate'] = pd.to_datetime(df['AlarmDate'])
+
+        # Extraer la semana del año y agregarla como una nueva columna
+        df['Week'] = df['AlarmDate'].dt.isocalendar().week
+
+        # Obtener el número de semanas únicas
+        num_weeks = len(np.unique(df['Week']))
+
+        # Crear una figura y un eje
+        fig, axs = plt.subplots(num_weeks, 1, figsize=(10, 5*num_weeks))
+
+    # Crear un histograma para cada semana
+    for i, week in enumerate(np.unique(df['Week'])):
+        ax = axs[i]
+        week_data = df[df['Week'] == week]
+        grouped = week_data.groupby(['AlarmName', 'AlarmStatus']).size().reset_index(name='Counts')
+        sns.barplot(x='AlarmName', y='Counts', hue='AlarmStatus', data=grouped, ax=ax)
+        ax.set_title(f'Semana {week}')
+
+        # Mostrar la gráfica
+        plt.tight_layout()
+        plt.show()
+
+    def pie(self):
+        pass
+
+    def pie(self):
+        pass
+
+        # # Convertir la columna 'AlarmDate' a datetime
+        # df['AlarmDate'] = pd.to_datetime(df['AlarmDate'])
+
+        # # Extraer la semana del año y agregarla como una nueva columna
+        # df['Week'] = df['AlarmDate'].dt.isocalendar().week
+
+        # # Obtener el número de semanas únicas
+        # num_weeks = len(np.unique(df['Week']))
+
+        # # Crear una figura y un eje
+        # fig = plt.figure(figsize=(10, 5*num_weeks))
+
+        # # Crear un histograma para cada semana
+        # for i, week in enumerate(np.unique(df['Week'])):
+        #     ax = fig.add_subplot(num_weeks, 1, i+1)
+        #     week_data = df[df['Week'] == week]
+        #     grouped = week_data.groupby(
+        #         ['AlarmDate', 'AlarmStatus']).size().reset_index(name='Counts')
+
+        #     # Aquí es donde agregamos la categoría 'others' para cada semana
+        #     mask = grouped['Counts'] < 100
+        #     week_data.loc[week_data['AlarmDate'].isin(
+        #         grouped.loc[mask, 'AlarmDate']), 'AlarmDate'] = 'others'
+
+        #     grouped = week_data.groupby(
+        #         ['AlarmDate', 'AlarmStatus']).size().reset_index(name='Counts')
+
+        #     sns.barplot(x='AlarmDate', y='Counts',
+        #                 hue='AlarmStatus', data=grouped, ax=ax)
+        #     ax.set_title(f'Semana {week}')
+        #     # Aquí ajustamos el tamaño de la fuente
+        #     ax.set_xticklabels(ax.get_xticklabels(), rotation=90, fontsize=8)
+
+        #     # Mostrar la gráfica
+        #     plt.tight_layout()
+        #     plt.show()
+
+    # def chart_histogram(self, data):
+    #     # Convertir los datos a un DataFrame de pandas
+    #     columns = ['Entity', 'AlarmDate',
+    #                'AlarmID', 'AlarmName', 'AlarmStatus']
+
+    #     df = pd.DataFrame([tuple(row) for row in data], columns=columns)
+
+    #     # Convertir la columna 'AlarmDate' a datetime
+    #     df['AlarmDate'] = pd.to_datetime(df['AlarmDate'])
+
+    #     # Extraer la semana del año y agregarla como una nueva columna
+    #     df['Week'] = df['AlarmDate'].dt.isocalendar().week
+
+    #     # Obtener el número de semanas únicas
+    #     num_weeks = len(np.unique(df['Week']))
+
+    #     # Crear una figura y un eje
+    #     fig, axs = plt.subplots(num_weeks, 1, figsize=(10, 5*num_weeks))
+
+    #     # Crear un histograma para cada semana
+    #     for i, week in enumerate(np.unique(df['Week'])):
+    #         ax = axs[i]
+    #         week_data = df[df['Week'] == week]
+    #         grouped = week_data.groupby(['AlarmName', 'AlarmStatus']).size().reset_index(name='Counts')
+    #         sns.barplot(x='AlarmName', y='Counts', hue='AlarmStatus', data=grouped, ax=ax)
+    #         ax.set_title(f'Semana {week}')
+    #         ax.set_xticklabels([])  # Aquí desactivamos las etiquetas del eje x
+
+    #     # Mostrar la gráfica
+    #     plt.tight_layout()
+    #     plt.show()
+
+
+# # Obtener las fechas únicas y ordenarlas
+# unique_dates = df['AlarmDate'].unique()
+# unique_dates = sorted(unique_dates)  # Ordenar las fechas
+# unique_dates = pd.to_datetime(unique_dates)  # Convertir nuevamente a DatetimeArray
+
+# # Dividir las fechas en grupos de una semana y crear gráficos
+# for i in range(0, len(unique_dates), 7):
+#     week_data = df[df['AlarmDate'].between(unique_dates[i], unique_dates[i+6])]
+#     if not week_data.empty:
+#         plt.figure(figsize=(12, 6))
+#         sns.lineplot(data=week_data, x='AlarmDate', y='Count', hue='AlarmName', marker='o')
+#         plt.title(f'Tendencia de Alarmas - Semana {i//7 + 1}')
+#         plt.xlabel('Fecha')
+#         plt.ylabel('Cantidad de Alarmas')
+#         plt.xticks(rotation=45)
+#         plt.tight_layout()
+#         plt.legend(bbox_to_anchor=(.25, .25), loc='upper right', fontsize='small')
+#         plt.show()
+
+# # Crear el gráfico con Chartify
+# ch = chartify.Chart(blank_labels=True, x_axis_type="categorical")
+
+# ch.plot.bar(data_frame=df,
+#             categorical_columns="AlarmStatus",
+#             numeric_column="Count",
+#             color_column="AlarmStatus")
+
+# ch.set_legend_location("top_right")
+
+# # Verificar si el directorio de salida existe, si no, crearlo
+# output_dir = realpath("./output/charts/")
+# if not os.path.exists(output_dir):
+#     os.makedirs(output_dir)
+
+# # Guardar el gráfico en el archivo
+# ch.save(os.path.join(output_dir, "0.png"), "png")
+
+# # Agrupamos por nombre de alarma y contamos la cantidad de cada uno
+# df['AlarmDate'] = pd.to_datetime(df['AlarmDate']).dt.floor('d')
+# df_grouped = df.groupby(['AlarmDate', 'AlarmName', 'AlarmStatus']).size().reset_index(name='Count')
+
+# # Creamos dos DataFrames: uno para las alarmas "principales" y otro para las "otras"
+# df_principales = df_grouped[df_grouped['Count'] > 10]
+# df_otras = df_grouped[df_grouped['Count'] <= 10]
+
+# # Reiniciamos los índices de ambos DataFrames
+# df_principales = df_principales.reset_index(drop=True)
+# df_otras = df_otras.reset_index(drop=True)
+
+# print(df_principales)
+
+# # Crear una instancia de Chartify
+# ch = chartify.Chart(
+#     blank_labels=True,
+#     x_axis_type="datetime",
+#     y_axis_type="linear",
+# )
+
+# # Configurar los títulos y subtítulos
+# ch.set_title("Histograma de Alarmas")
+# ch.set_subtitle(
+#     "Agrupado por fecha de alarma, nombre de alarma y estado de alarma")
+
+# # Plot the first axis
+# ch.plot.scatter(
+#     data_frame=df_principales,
+#     x_column="AlarmDate",
+#     y_column="Count",
+#     color_column='AlarmName'
+# )
+
+# ch.set_legend_location(None)
+
+# ch.save(realpath("./output/charts/0.png"), "png")
+
+
+# print(df_principales)
+# print(df_otras)
+# # alarm_counts = df['AlarmName'].value_counts().reset_index()
+# # alarm_counts.columns = ['AlarmName', 'Count']
+
+# # Generate example data
+# data = pd.DataFrame({"x": list(range(100))})
+# data["y"] = data["x"] * np.random.normal(size=100)
+# data["z"] = np.random.choice([2, 4, 5], size=100)
+# data["country"] = np.random.choice(
+#     ["US", "GB", "CA", "JP", "BR"], size=100)
+
+# # Plot the data
+# ch = chartify.Chart(blank_labels=True)
+# ch.style.set_color_palette(palette_type="categorical")
+# ch.plot.scatter(data_frame=data, x_column="x",
+#                 y_column="y", color_column="country")
+# ch.set_title("Categorical color palette type")
+# ch.set_subtitle(
+#     "Default palette type. Use to differentiate categorical series.")
+
+# # Creamos el gráfico de barras horizontales con Chartify
+# ch = Chart(blank_labels=True, y_axis_type='categorical')
+
+# # Cambiamos el tamaño del gráfico
+# ch.set_figsize('16x10')
+
+# ch.plot.bar(
+#     data_frame=alarm_counts,
+#     categorical_columns='AlarmName',
+#     numeric_column='Count',
+#     color_column='AlarmName',
+#     orientation='horizontal')
+
+# ch.save(os.path.realpath("./output/charts/0.png"), "png")
+
+# print(alarm_counts)
+
+# # Creamos el gráfico de barras apiladas con Chartify
+# ch = Chart(blank_labels=True, x_axis_type='categorical')
+# ch.set_title("Cantidad de cada tipo de alarma para 'Farmatodo'")
+
+# # Rotamos las etiquetas del eje X
+# ch.axes.hide_xaxis()
+
+# ch.plot.bar_stacked(
+#     data_frame=alarm_counts,
+#     categorical_columns='AlarmName',
+#     numeric_column='Count',
+#     stack_column='AlarmName',
+#     normalize=False)
+
+# ch.figure.xaxis.axis_label_text_font_size = '30pt'
+# ch.figure.xaxis.axis_label_text_color = 'red'
+# ch.figure.height = 400
+# ch.axes.set_xaxis_label('A large xaxis label')
+
+
+
+# # Obtener las fechas únicas y ordenarlas
+# unique_dates = df['AlarmDate'].unique()
+# unique_dates = sorted(unique_dates)  # Ordenar las fechas
+# unique_dates = pd.to_datetime(unique_dates)  # Convertir nuevamente a DatetimeArray
+
+# # Dividir las fechas en grupos de una semana y crear gráficos
+# for i in range(0, len(unique_dates), 7):
+#     week_data = df[df['AlarmDate'].between(unique_dates[i], unique_dates[i+6])]
+#     if not week_data.empty:
+#         plt.figure(figsize=(12, 6))
+#         sns.lineplot(data=week_data, x='AlarmDate', y='Count', hue='AlarmName', marker='o')
+#         plt.title(f'Tendencia de Alarmas - Semana {i//7 + 1}')
+#         plt.xlabel('Fecha')
+#         plt.ylabel('Cantidad de Alarmas')
+#         plt.xticks(rotation=45)
+#         plt.tight_layout()
+#         plt.legend(bbox_to_anchor=(.25, .25), loc='upper right', fontsize='small')
+#         plt.show()
+
+# # Crear el gráfico con Chartify
+# ch = chartify.Chart(blank_labels=True, x_axis_type="categorical")
+
+# ch.plot.bar(data_frame=df,
+#             categorical_columns="AlarmStatus",
+#             numeric_column="Count",
+#             color_column="AlarmStatus")
+
+# ch.set_legend_location("top_right")
+
+# # Verificar si el directorio de salida existe, si no, crearlo
+# output_dir = realpath("./output/charts/")
+# if not os.path.exists(output_dir):
+#     os.makedirs(output_dir)
+
+# # Guardar el gráfico en el archivo
+# ch.save(os.path.join(output_dir, "0.png"), "png")
+
+# # Agrupamos por nombre de alarma y contamos la cantidad de cada uno
+# df['AlarmDate'] = pd.to_datetime(df['AlarmDate']).dt.floor('d')
+# df_grouped = df.groupby(['AlarmDate', 'AlarmName', 'AlarmStatus']).size().reset_index(name='Count')
+
+# # Creamos dos DataFrames: uno para las alarmas "principales" y otro para las "otras"
+# df_principales = df_grouped[df_grouped['Count'] > 10]
+# df_otras = df_grouped[df_grouped['Count'] <= 10]
+
+# # Reiniciamos los índices de ambos DataFrames
+# df_principales = df_principales.reset_index(drop=True)
+# df_otras = df_otras.reset_index(drop=True)
+
+# print(df_principales)
+
+# # Crear una instancia de Chartify
+# ch = chartify.Chart(
+#     blank_labels=True,
+#     x_axis_type="datetime",
+#     y_axis_type="linear",
+# )
+
+# # Configurar los títulos y subtítulos
+# ch.set_title("Histograma de Alarmas")
+# ch.set_subtitle(
+#     "Agrupado por fecha de alarma, nombre de alarma y estado de alarma")
+
+# # Plot the first axis
+# ch.plot.scatter(
+#     data_frame=df_principales,
+#     x_column="AlarmDate",
+#     y_column="Count",
+#     color_column='AlarmName'
+# )
+
+# ch.set_legend_location(None)
+
+# ch.save(realpath("./output/charts/0.png"), "png")
+
+
+# print(df_principales)
+# print(df_otras)
+# # alarm_counts = df['AlarmName'].value_counts().reset_index()
+# # alarm_counts.columns = ['AlarmName', 'Count']
+
+# # Generate example data
+# data = pd.DataFrame({"x": list(range(100))})
+# data["y"] = data["x"] * np.random.normal(size=100)
+# data["z"] = np.random.choice([2, 4, 5], size=100)
+# data["country"] = np.random.choice(
+#     ["US", "GB", "CA", "JP", "BR"], size=100)
+
+# # Plot the data
+# ch = chartify.Chart(blank_labels=True)
+# ch.style.set_color_palette(palette_type="categorical")
+# ch.plot.scatter(data_frame=data, x_column="x",
+#                 y_column="y", color_column="country")
+# ch.set_title("Categorical color palette type")
+# ch.set_subtitle(
+#     "Default palette type. Use to differentiate categorical series.")
+
+# # Creamos el gráfico de barras horizontales con Chartify
+# ch = Chart(blank_labels=True, y_axis_type='categorical')
+
+# # Cambiamos el tamaño del gráfico
+# ch.set_figsize('16x10')
+
+# ch.plot.bar(
+#     data_frame=alarm_counts,
+#     categorical_columns='AlarmName',
+#     numeric_column='Count',
+#     color_column='AlarmName',
+#     orientation='horizontal')
+
+# ch.save(os.path.realpath("./output/charts/0.png"), "png")
+
+# print(alarm_counts)
+
+# # Creamos el gráfico de barras apiladas con Chartify
+# ch = Chart(blank_labels=True, x_axis_type='categorical')
+# ch.set_title("Cantidad de cada tipo de alarma para 'Farmatodo'")
+
+# # Rotamos las etiquetas del eje X
+# ch.axes.hide_xaxis()
+
+# ch.plot.bar_stacked(
+#     data_frame=alarm_counts,
+#     categorical_columns='AlarmName',
+#     numeric_column='Count',
+#     stack_column='AlarmName',
+#     normalize=False)
+
+# ch.figure.xaxis.axis_label_text_font_size = '30pt'
+# ch.figure.xaxis.axis_label_text_color = 'red'
+# ch.figure.height = 400
+# ch.axes.set_xaxis_label('A large xaxis label')

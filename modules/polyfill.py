@@ -3,6 +3,7 @@ from bokeh.resources import INLINE
 from PIL import Image, ImageOps
 from io import BytesIO
 from bokeh.embed import file_html
+import os
 
 
 class Chart(chartify.Chart):
@@ -12,11 +13,17 @@ class Chart(chartify.Chart):
         To convert to PNG the HTML file is opened in a headless browser.
         """
         driver = self._initialize_webdriver()
+
         # Save figure as HTML
         html = file_html(self.figure, resources=INLINE, title="")
-        filename = "C:/Users/gmaizo/AppData/Local/Temp/3/chartify.html"
+        filename = os.path.realpath("./output/cache/chartify.html")
+
+        if not os.path.exists(os.path.dirname(filename)):
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+
         with open(filename, 'w', encoding="utf-8") as fp:
             fp.write(html)
+
         # Open html file in the browser.
         file_url = "file:///" + filename
         driver.get(file_url)
