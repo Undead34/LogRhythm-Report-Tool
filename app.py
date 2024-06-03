@@ -14,8 +14,8 @@ from modules.database import MSQLServer
 from modules.elastic import Elastic
 from modules.report import Report
 
-from modules.questions import get_output_details, get_signature, select_entities, get_client_details, select_tables
-from utils import get_file_name, execute_callbacks, clear_console
+from modules.questions import get_output_details, get_signature, select_entities, get_client_details, select_tables, select_charts, DateSelector
+from utils import get_file_name, execute_callbacks
 
 
 def main():
@@ -30,7 +30,7 @@ def main():
 
     entities = select_entities(db)
     db.set_entity_ids(entities)
-    
+
     print("Entidades seleccionadas:")
     print(entities)
     print("")
@@ -62,13 +62,18 @@ def main():
 
     report.elements += components.cover_page(signature, name, logo)
 
+    # Tables
     tables = components.get_tables()
-
     selected_tables = select_tables(tables)
 
-    elements_tables = execute_callbacks(selected_tables)
+    # Charts
+    charts = components.get_charts()
+    selected_charts = select_charts(charts)
 
-    for element in elements_tables:
+    elements = execute_callbacks(selected_tables) + \
+        execute_callbacks(selected_charts)
+
+    for element in elements:
         report.elements += element
 
     report.build()
@@ -81,3 +86,8 @@ if __name__ == "__main__":
     except Exception as e:
         print(e)
         sys.exit(1)
+
+
+# date_selector = DateSelector()
+# selected_date = date_selector.select_date()
+# print(f"Selected date: {selected_date}")

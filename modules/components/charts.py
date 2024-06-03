@@ -1,20 +1,81 @@
-import os
-import numpy as np
-import pandas as pd
+from reportlab.platypus import PageBreak, Image, Spacer, Table, TableStyle, Paragraph
+from reportlab.platypus import Table, TableStyle, Indenter
+from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.graphics.shapes import Line, Drawing
+from reportlab.lib.units import inch, cm
+from reportlab.lib import colors
+
+
 from uuid import uuid4 as v4
+import pandas as pd
+import numpy as np
+import os
 
-import matplotlib as mpl
 import matplotlib.pyplot as plt
-
-import seaborn as sns
 import seaborn.objects as so
+import seaborn as sns
+
+from modules.template.theme import ParagraphStyles
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from modules.components import Components
 
 
 class Charts():
-    def __init__(self) -> None:
-        pass
+    def __init__(self, components: 'Components') -> None:
+        self.components = components
+        self.theme = components.theme
+        self.db = components.db
 
-    def chart_stacked_bar(self, data: pd.DataFrame) -> str:
+    def chart_histogram(self):
+        df = self.db.alarms_per_entity_table()
+
+        # Verificar si el DataFrame está vacío
+        if df.empty:
+            # Devolver una figura y un párrafo indicando que no hay datos
+            a = Paragraph("No hay datos disponibles para mostrar el histograma.",
+                          self.theme.get_style(ParagraphStyles.NR_TEXTO_NGRAFICO))
+            return [a]
+
+        df['AlarmDate'] = pd.to_datetime(df['AlarmDate'])
+
+        # Convertimos la fecha a YYYY-MM-DD
+        df['AlarmDate'] = df['AlarmDate'].dt.floor('d')
+
+        # Agrupamos por fecha y nombre
+        by_date_and_name = df.groupby(['AlarmDate', 'AlarmName'])
+        by_date_and_name = by_date_and_name.size().reset_index(name='Counts')
+
+        # Crear un nuevo DataFrame donde los conteos sean menores a 100
+        than = 100
+        less_than = by_date_and_name[by_date_and_name['Counts'] < than]
+
+        # Agrupar por 'AlarmDate' y sumar los conteos
+        others = less_than.groupby('AlarmDate')['Counts'].sum().reset_index()
+        others['AlarmName'] = 'Others'
+
+        # Eliminar las filas con conteos menores a than del DataFrame original
+        by_date_and_name = by_date_and_name[by_date_and_name['Counts'] >= than]
+
+        # Agregar el nuevo DataFrame al original
+        by_date_and_name = pd.concat(
+            [by_date_and_name, others], ignore_index=True)
+
+        figure_src = self._draw_chart_histogram(by_date_and_name)
+
+        a = Image(figure_src,
+                  width=15.59 * cm,
+                  height=8.52 * cm,
+                  hAlign="CENTER")
+
+        b = Paragraph("Figure X: Distribución de Alarmas por Tipo y Estado", self.theme.get_style(
+            ParagraphStyles.NR_TEXTO_NGRAFICO))
+
+        return [a, b]
+
+    def _draw_chart_stacked_bar(self, data: pd.DataFrame) -> str:
         # Definir los colores para las barras
         colors = ['#50BBD4', '#4F81A4', '#F9A40C', '#F96611', '#941C2F', '#D7BCE8',
                   '#D7263D', '#464655', '#495159', '#05F140', '#A790A5', '#875C74']
@@ -44,7 +105,7 @@ class Charts():
 
         return output
 
-    def chart_histogram(self, data: pd.DataFrame) -> str:
+    def _draw_chart_histogram(self, data: pd.DataFrame) -> str:
         # Ajustar el tamaño de la figura
         plt.figure(figsize=(18, 10))
 

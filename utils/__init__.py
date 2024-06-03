@@ -27,11 +27,12 @@ def get_file_name(output_path: str, f: str, s: dict) -> str:
 def execute_callbacks(selected_tables: pd.DataFrame):
     outputs = []
     for index, row in selected_tables.iterrows():
-        callback = row['TableCallback']
+        callback = row['callback']
         if callable(callback):
             result = callback()
             outputs.append(result)
     return outputs
+
 
 def clear_console():
     # Limpiar la consola dependiendo del sistema operativo

@@ -27,18 +27,28 @@ class Components:
         self.theme = report.theme
         self.db = report.database
         self.pkg = report.packages
+        self.charts = Charts(self)
 
         # Atributo privado _available_tables
         self._available_tables = pd.DataFrame([
             {
                 "TableID": "entities_table",
                 "TableName": "Tabla de entidades disponibles en LogRhythm",
-                "TableCallback": self._entities_table
+                "callback": self._entities_table
             },
             {
                 "TableID": "alarms_per_entity_table",
                 "TableName": "Tabla de alarmas por entidad",
-                "TableCallback": self._alarms_per_entity_table
+                "callback": self._alarms_per_entity_table
+            }
+        ])
+
+        # Atributo privado _available_charts
+        self._available_charts = pd.DataFrame([
+            {
+                "ChartID": "entities_table",
+                "ChartName": "Tabla de entidades disponibles en LogRhythm",
+                "callback": self.charts.chart_histogram
             }
         ])
 
@@ -68,9 +78,13 @@ class Components:
     def get_tables(self) -> pd.DataFrame:
         return self._available_tables.copy()
 
+    def get_charts(self):
+        return self._available_charts.copy()
+
     # Private Components
 
-    # No sé pero se puede llamar a self, aunque no se le pasa a la funcion que lo llama en utils, cosas de Python XD
+    # No sé, pero se puede llamar a self, aunque no se le pasa a la funcion que lo llama en utils, cosas de Python XD
+
     def _entities_table(self):
         entities = self.db.get_entities().get(['EntityID', 'Name'])
 
@@ -86,7 +100,8 @@ class Components:
         df_filtered = df[~df['AlarmStatus'].isin(['New', 'OpenAlarm'])]
 
         # Agrupar los datos por 'AlarmName' y 'AlarmStatus'
-        alarms = df_filtered.groupby(['Entity', 'AlarmName', 'AlarmStatus']).size().unstack(fill_value=0).reset_index()
+        alarms = df_filtered.groupby(['Entity', 'AlarmName', 'AlarmStatus']).size(
+        ).unstack(fill_value=0).reset_index()
 
         table_data = [alarms.columns.to_list()] + alarms.values.tolist()
 
