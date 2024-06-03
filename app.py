@@ -9,12 +9,14 @@ if not sys.version_info >= (3, 7):
     print("LogRhythm Report Tool requires Python 3.7 or higher.")
     sys.exit(1)
 
+import pandas as pd
+
 from modules.components import Components
 from modules.database import MSQLServer
 from modules.elastic import Elastic
 from modules.report import Report
 
-from modules.questions import get_output_details, get_signature, select_entities, get_client_details, select_tables, select_charts, DateSelector
+from modules.questions import get_output_details, get_signature, select_entities, get_client_details, select_tables, select_charts, DateSelector, ListReorder
 from utils import get_file_name, execute_callbacks
 
 
@@ -70,8 +72,13 @@ def main():
     charts = components.get_charts()
     selected_charts = select_charts(charts)
 
-    elements = execute_callbacks(selected_tables) + \
-        execute_callbacks(selected_charts)
+    # Combinar DataFrames y reordenar
+    unordered_elements = pd.concat([selected_tables, selected_charts], ignore_index=True)
+
+    ordered_elements = ListReorder(unordered_elements).reorder()
+
+    # Ejecutar callbacks y construir el reporte
+    elements = execute_callbacks(ordered_elements)
 
     for element in elements:
         report.elements += element
@@ -86,8 +93,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(e)
         sys.exit(1)
-
-
-# date_selector = DateSelector()
-# selected_date = date_selector.select_date()
-# print(f"Selected date: {selected_date}")

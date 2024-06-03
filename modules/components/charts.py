@@ -29,7 +29,7 @@ class Charts():
         self.theme = components.theme
         self.db = components.db
 
-    def chart_histogram(self):
+    def histogram_entities_chart(self):
         df = self.db.alarms_per_entity_table()
 
         # Verificar si el DataFrame está vacío
@@ -74,6 +74,29 @@ class Charts():
             ParagraphStyles.NR_TEXTO_NGRAFICO))
 
         return [a, b]
+
+    def stacked_bar_entities_chart(self):
+        df = self.db.alarms_per_entity_table()
+        df['AlarmDate'] = pd.to_datetime(df['AlarmDate'])
+
+        # Excluir las alarmas con estado "New" y "OpenAlarm"
+        df_filtered = df[~df['AlarmStatus'].isin(['New', 'OpenAlarm'])]
+
+        # Agrupar los datos por 'AlarmName' y 'AlarmStatus'
+        alarms = df_filtered.groupby(['AlarmName', 'AlarmStatus']).size().unstack(fill_value=0)
+
+        figure_src = self._draw_chart_stacked_bar(alarms)
+
+        a = Image(figure_src,
+                  width=15.59 * cm,
+                  height=8.52 * cm,
+                  hAlign="CENTER")
+
+        b = Paragraph("Figure X: Distribución de Alarmas por Tipo y Estado", self.theme.get_style(
+            ParagraphStyles.NR_TEXTO_NGRAFICO))
+        
+        return [a, b]
+
 
     def _draw_chart_stacked_bar(self, data: pd.DataFrame) -> str:
         # Definir los colores para las barras

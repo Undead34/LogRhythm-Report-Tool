@@ -32,24 +32,29 @@ class Components:
         # Atributo privado _available_tables
         self._available_tables = pd.DataFrame([
             {
-                "TableID": "entities_table",
-                "TableName": "Tabla de entidades disponibles en LogRhythm",
-                "callback": self._entities_table
+                "ID": "entities_table",
+                "Name": "Tabla de entidades disponibles en LogRhythm",
+                "Callback": self._entities_table
             },
             {
-                "TableID": "alarms_per_entity_table",
-                "TableName": "Tabla de alarmas por entidad",
-                "callback": self._alarms_per_entity_table
+                "ID": "alarms_per_entity_table",
+                "Name": "Tabla de alarmas por entidad",
+                "Callback": self._alarms_per_entity_table
             }
         ])
 
         # Atributo privado _available_charts
         self._available_charts = pd.DataFrame([
             {
-                "ChartID": "entities_table",
-                "ChartName": "Tabla de entidades disponibles en LogRhythm",
-                "callback": self.charts.chart_histogram
-            }
+                "ID": "entities_chart",
+                "Name": "Gráfico de entidades disponibles en LogRhythm",
+                "Callback": self.charts.histogram_entities_chart
+            },
+            {
+                "ID": "alarms_per_entity_chart",
+                "Name": "Gráfico de alarmas por entidad",
+                "Callback": self.charts.stacked_bar_entities_chart
+            },
         ])
 
     def cover_page(self, signature: dict, name: str, logo: str):
@@ -82,10 +87,10 @@ class Components:
         return self._available_charts.copy()
 
     # Private Components
-
-    # No sé, pero se puede llamar a self, aunque no se le pasa a la funcion que lo llama en utils, cosas de Python XD
+    # =========================================================
 
     def _entities_table(self):
+        """No sé, pero se puede llamar a self, aunque no se le pasa a la funcion que lo llama en utils, cosas de Python XD"""
         entities = self.db.get_entities().get(['EntityID', 'Name'])
 
         table_data = [entities.columns.to_list()] + entities.values.tolist()

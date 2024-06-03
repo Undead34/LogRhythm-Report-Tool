@@ -118,7 +118,7 @@ def get_output_details() -> tuple:
         {
             "type": "input",
             "name": "filename_format",
-            "message": "Ingrese el formato del nombre del archivo (e.g., {client_name}, {title}, {stime}, {ltime}, {author}, {subject}):",
+            "message": "Ingrese el formato del nombre del archivo (e.g., {client_name}, {title}, {stime}, {ltime}, {author}, {subject}, {uuid}):",
             "default": "{client_name} - {stime}"
         }
     ]
@@ -190,7 +190,7 @@ def select_tables(tables: pd.DataFrame) -> pd.DataFrame:
     pd.DataFrame: DataFrame con las tablas seleccionadas.
     """
     # Crear una lista de opciones a partir del DataFrame
-    choices = [{"name": row['TableName'], "value": row['callback']}
+    choices = [{"name": row['Name'], "value": row['Callback']}
                for index, row in tables.iterrows()]
 
     # Preguntar al usuario para seleccionar múltiples tablas
@@ -205,7 +205,7 @@ def select_tables(tables: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
 
     # Filtrar el DataFrame para obtener las tablas seleccionadas
-    selected_tables = tables[tables['callback'].isin(
+    selected_tables = tables[tables['Callback'].isin(
         answers)].reset_index(drop=True)
 
     return selected_tables
@@ -222,7 +222,7 @@ def select_charts(charts: pd.DataFrame) -> pd.DataFrame:
     pd.DataFrame: DataFrame con los gráficos seleccionados.
     """
     # Crear una lista de opciones a partir del DataFrame
-    choices = [{"name": row['ChartName'], "value": row['callback']}
+    choices = [{"name": row['Name'], "value": row['Callback']}
                for index, row in charts.iterrows()]
 
     # Preguntar al usuario para seleccionar múltiples gráficos
@@ -237,26 +237,24 @@ def select_charts(charts: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
 
     # Filtrar el DataFrame para obtener los gráficos seleccionados
-    selected_charts = charts[charts['callback'].isin(
+    selected_charts = charts[charts['Callback'].isin(
         answers)].reset_index(drop=True)
 
     return selected_charts
 
-import curses
-import datetime
 
 class DateSelector:
-    def __init__(self, 
-                 message="Select a date", 
-                 starting_date=None, 
-                 min_date=None, 
-                 max_date=None, 
-                 week_start=0, 
-                 navigate_keys=None, 
-                 change_year_key='y', 
-                 confirm_key='\n', 
-                 instructions=None, 
-                 enter_year_prompt="Enter year: ", 
+    def __init__(self,
+                 message="Select a date",
+                 starting_date=None,
+                 min_date=None,
+                 max_date=None,
+                 week_start=0,
+                 navigate_keys=None,
+                 change_year_key='y',
+                 confirm_key='\n',
+                 instructions=None,
+                 enter_year_prompt="Enter year: ",
                  selected_date_message="Selected date: {date}"):
 
         self._message = message
@@ -276,7 +274,7 @@ class DateSelector:
         self._change_year_key = ord(change_year_key)
         self._confirm_key = ord(confirm_key)
         text_key = 'ENTER' if confirm_key == '\n' else confirm_key
-        
+
         # Instructions
         self._instructions = instructions or {
             'navigation': "Use arrow keys to navigate, enter to select the date",
@@ -290,23 +288,29 @@ class DateSelector:
     def _render_calendar(self, stdscr):
         stdscr.clear()
         curses.start_color()
-        curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLUE)  # Selected date
-        curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)   # Weekend days
+        curses.init_pair(1, curses.COLOR_WHITE,
+                         curses.COLOR_BLUE)  # Selected date
+        curses.init_pair(2, curses.COLOR_RED,
+                         curses.COLOR_BLACK)   # Weekend days
         curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)  # Weekdays
 
-        stdscr.addstr(0, 0, self._instructions['navigation'], curses.color_pair(3))
-        stdscr.addstr(1, 0, self._selected_date.strftime("%B %Y"), curses.color_pair(3))
+        stdscr.addstr(
+            0, 0, self._instructions['navigation'], curses.color_pair(3))
+        stdscr.addstr(1, 0, self._selected_date.strftime(
+            "%B %Y"), curses.color_pair(3))
 
         # Print the day headers
         days_header = [" Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
         if self._week_start == 1:  # Week starts on Monday
             days_header = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
-        stdscr.addstr(2, 0, "  ".join(days_header), curses.color_pair(3))  # Use two spaces between days
+        # Use two spaces between days
+        stdscr.addstr(2, 0, "  ".join(days_header), curses.color_pair(3))
 
         first_day = self._selected_date.replace(day=1)
         start_day = (first_day.weekday() - self._week_start + 7) % 7
 
-        days_in_month = (first_day + datetime.timedelta(days=32)).replace(day=1) - first_day
+        days_in_month = (first_day + datetime.timedelta(days=32)
+                         ).replace(day=1) - first_day
 
         current_line = 3
         current_column = start_day * 4  # Adjusting the initial column position
@@ -316,9 +320,11 @@ class DateSelector:
             if current_date.weekday() >= 5:  # Saturday or Sunday
                 color = curses.color_pair(2)  # Weekend days
             if current_date == self._selected_date:
-                stdscr.addstr(current_line, current_column, f"[{day:2}]".replace(' ', ''), curses.color_pair(1))
+                stdscr.addstr(current_line, current_column, f"[{day:2}]".replace(
+                    ' ', ''), curses.color_pair(1))
             else:
-                stdscr.addstr(current_line, current_column, f" {day:2} ", color)
+                stdscr.addstr(current_line, current_column,
+                              f" {day:2} ", color)
             current_column += 4  # Change to 4 to ensure proper alignment
             if (start_day + day) % 7 == 0:
                 current_line += 1
@@ -339,7 +345,8 @@ class DateSelector:
         while True:
             self._render_calendar(stdscr)
             stdscr.addstr(10, 0, self._message, curses.color_pair(3))
-            stdscr.addstr(11, 0, self._instructions['change_year'], curses.color_pair(3))
+            stdscr.addstr(
+                11, 0, self._instructions['change_year'], curses.color_pair(3))
             key = stdscr.getch()
             if key == self._navigate_keys['up']:
                 self._selected_date -= datetime.timedelta(weeks=1)
@@ -362,9 +369,94 @@ class DateSelector:
     def select_date(self):
         def selector(stdscr):
             self._date_select(stdscr)
-            stdscr.addstr(12, 0, self._selected_date_message.format(date=self._selected_date), curses.color_pair(3))
+            stdscr.addstr(12, 0, self._selected_date_message.format(
+                date=self._selected_date), curses.color_pair(3))
             stdscr.refresh()
             stdscr.getch()
 
         curses.wrapper(selector)
         return self._selected_date
+
+
+class ListReorder:
+    def __init__(self, items):
+        self.items = items
+        self.selected_idx = 0
+        self.selecting = False
+        self.done = False
+        self.offset = 0
+        self.height = 0
+
+    def _print_instructions(self, stdscr):
+        instructions = "Use UP/DOWN to navigate. Press SPACE to select/deselect, ENTER to accept, HOME to go to the top, END to go to the bottom, 'q' to quit."
+        stdscr.addstr(0, 0, instructions)
+
+    def _print_items(self, stdscr):
+        for i in range(self.height):
+            idx = i + self.offset
+            if idx >= len(self.items):
+                break
+            display_text = f"({idx + 1}) {self.items.iloc[idx]['Name']}"
+            if idx == self.selected_idx:
+                if self.selecting:
+                    stdscr.addstr(
+                        i + 2, 0, f"↕️ {display_text}", curses.A_REVERSE)
+                else:
+                    stdscr.addstr(
+                        i + 2, 0, f"> {display_text}", curses.A_REVERSE)
+            else:
+                stdscr.addstr(i + 2, 0, f"  {display_text}")
+
+    def _handle_key_press(self, stdscr):
+        key = stdscr.getch()
+        if not self.selecting:
+            if key == curses.KEY_UP and self.selected_idx > 0:
+                self.selected_idx -= 1
+                if self.selected_idx < self.offset:
+                    self.offset -= 1
+            elif key == curses.KEY_DOWN and self.selected_idx < len(self.items) - 1:
+                self.selected_idx += 1
+                if self.selected_idx >= self.offset + self.height:
+                    self.offset += 1
+            elif key == curses.KEY_HOME:
+                self.selected_idx = 0
+                self.offset = 0
+            elif key == curses.KEY_END:
+                self.selected_idx = len(self.items) - 1
+                self.offset = max(0, len(self.items) - self.height)
+            elif key == ord(' '):
+                self.selecting = True
+            elif key == curses.KEY_ENTER or key in [10, 13]:
+                self.done = True
+            elif key == ord('q'):
+                self.done = True
+        else:
+            if key == curses.KEY_UP and self.selected_idx > 0:
+                self.items.iloc[self.selected_idx], self.items.iloc[self.selected_idx -
+                                                                    1] = self.items.iloc[self.selected_idx - 1].copy(), self.items.iloc[self.selected_idx].copy()
+                self.selected_idx -= 1
+                if self.selected_idx < self.offset:
+                    self.offset -= 1
+            elif key == curses.KEY_DOWN and self.selected_idx < len(self.items) - 1:
+                self.items.iloc[self.selected_idx], self.items.iloc[self.selected_idx +
+                                                                    1] = self.items.iloc[self.selected_idx + 1].copy(), self.items.iloc[self.selected_idx].copy()
+                self.selected_idx += 1
+                if self.selected_idx >= self.offset + self.height:
+                    self.offset += 1
+            elif key == ord(' '):
+                self.selecting = False
+
+    def _main(self, stdscr):
+        curses.curs_set(0)  # Ocultar el cursor
+        self.height = curses.LINES - 3  # Altura disponible para la lista
+
+        while not self.done:
+            stdscr.clear()
+            self._print_instructions(stdscr)
+            self._print_items(stdscr)
+            self._handle_key_press(stdscr)
+            stdscr.refresh()
+
+    def reorder(self):
+        curses.wrapper(self._main)
+        return self.items
