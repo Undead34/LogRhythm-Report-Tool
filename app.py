@@ -16,7 +16,8 @@ from modules.database import MSQLServer
 from modules.elastic import Elastic
 from modules.report import Report
 
-from modules.questions import get_output_details, get_signature, select_entities, get_client_details, select_tables, select_charts, select_date_range, ListReorder
+from modules.questions import select_entities, select_tables, select_charts, select_date_range, ListReorder
+from modules.questions import get_output_details, get_signature, get_client_details
 from utils import get_file_name, execute_callbacks
 
 
@@ -38,10 +39,10 @@ def main():
     print("")
 
     dates = select_date_range()
-    db.set_date_range(dates)
+    start, end = db.set_date_range(dates)
 
     print("Rango de fechas seleccionado:")
-    print(dates)
+    print(f"Desde {start} hasta {end}")
     print("")
 
     default_signature = {
@@ -80,7 +81,8 @@ def main():
     selected_charts = select_charts(charts)
 
     # Combinar DataFrames y reordenar
-    unordered_elements = pd.concat([selected_tables, selected_charts], ignore_index=True)
+    unordered_elements = pd.concat(
+        [selected_tables, selected_charts], ignore_index=True)
 
     ordered_elements = ListReorder(unordered_elements).reorder()
 

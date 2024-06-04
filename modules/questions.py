@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 def select_entities(db: 'MSQLServer') -> pd.DataFrame:
     """
-    Permite al usuario seleccionar múltiples entidades desde una base de datos.
+    Permite al usuario seleccionar múltiples entidades desde la base de datos.
 
     Args:
     db (MSQLServer): La conexión a la base de datos.
@@ -26,23 +26,20 @@ def select_entities(db: 'MSQLServer') -> pd.DataFrame:
         entities = db.get_entities().get(['EntityID', 'FullName'])
 
         # Crear una lista de opciones a partir del DataFrame
-        choices = [{"name": row['FullName'], "value": row['EntityID']}
-                   for index, row in entities.iterrows()]
+        choices = [{"name": row['FullName'], "value": row['EntityID']} for _, row in entities.iterrows()]
 
         # Preguntar al usuario para seleccionar múltiples entidades
         answers = questionary.checkbox(
             "Seleccionar las entidades que se incluirán en el reporte: ",
             choices=choices,
-            instruction="(Utilice las flechas para desplazarse, <espacio> para seleccionar, <a> para alternar, <i> para invertir)",
-        ).ask()
+            instruction="(Utilice las flechas para desplazarse, <espacio> para seleccionar, <a> para alternar, <i> para invertir)").ask()
 
         if not answers:
             print("No se seleccionaron entidades. Saliendo...")
             sys.exit(0)
 
         # Filtrar el DataFrame para obtener las entidades seleccionadas
-        selected_entities = entities[entities['EntityID'].isin(
-            answers)].reset_index(drop=True)
+        selected_entities = entities[entities['EntityID'].isin(answers)].reset_index(drop=True)
 
         return selected_entities
     except Exception as e:
@@ -94,8 +91,7 @@ def get_signature(default_signature: dict) -> dict:
                            for keyword in answers["keywords"].split(",")]
 
     # Agregar los campos inmutables
-    answers["producer"] = default_signature.get(
-        "producer", "LogRhythm Report Tool - github.com/Undead34")
+    answers["producer"] = default_signature.get("producer", "LogRhythm Report Tool - github.com/Undead34")
     answers["creator"] = default_signature.get("creator", "@Undead34")
 
     return answers
@@ -460,6 +456,7 @@ class ListReorder:
     def reorder(self):
         curses.wrapper(self._main)
         return self.items
+
 
 def select_date_range():
     selector = DateSelector()

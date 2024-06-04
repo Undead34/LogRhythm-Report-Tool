@@ -30,7 +30,7 @@ class Charts():
         self.db = components.db
 
     def histogram_entities_chart(self):
-        df = self.db.alarms_per_entity_table()
+        df = self.db.get_alarm_details_by_entity()
 
         # Verificar si el DataFrame está vacío
         if df.empty:
@@ -76,7 +76,7 @@ class Charts():
         return [a, b]
 
     def stacked_bar_entities_chart(self):
-        df = self.db.alarms_per_entity_table()
+        df = self.db.get_alarm_details_by_entity()
         df['AlarmDate'] = pd.to_datetime(df['AlarmDate'])
 
         # Excluir las alarmas con estado "New" y "OpenAlarm"

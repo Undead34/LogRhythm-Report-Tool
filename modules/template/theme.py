@@ -15,6 +15,7 @@ class ParagraphStyles(Enum):
     NR_TITULO_3 = 'NR-Titulo 3'
     NR_TABLE_HEADER_1 = 'NR-Table Header 3'
     NR_TABLE_HEADER_CONTENT_1 = 'NR-Table Header Content 3'
+    NR_TEXTO_ITALIC = 'NR-Italic'
 
 
 class Theme():
@@ -91,6 +92,13 @@ class Theme():
                                   spaceAfter=14,  # Espacio después: 20 pto
                                   # Sangría primera línea: 1cm (en puntos)
                                   firstLineIndent=1 * cm,
+                                  alignment=TA_CENTER))  # Centrado
+        
+        # Definimos el estilo 'NR-Texto NGrafico'
+        styles.add(ParagraphStyle(name=ParagraphStyles.NR_TEXTO_ITALIC.value,
+                                  fontName='Arial-Narrow-Italic',
+                                  fontSize=11,
+                                  textColor=self.Black,
                                   alignment=TA_CENTER))  # Centrado
 
         # Definimos el estilo 'NR-Titulo 1'

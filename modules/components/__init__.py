@@ -8,6 +8,7 @@ from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER, TA_JUSTIFY
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.units import inch, cm
 
+from datetime import datetime
 import pandas as pd
 
 from modules.template.theme import ParagraphStyles
@@ -69,12 +70,27 @@ class Components:
         e += Spacer(0, 4.5 * cm)
         e += Paragraph(signature["title"],
                        t.get_style(ParagraphStyles.NR_TITULO_1))
-        e += Spacer(0, 4.5 * cm)
+        e += Spacer(0, 4 * cm)
 
         e += Image(logo,
                    width=10.37 * cm,
                    height=2.46 * cm,
                    hAlign="CENTER")
+
+        e += Spacer(0, 3 * cm)
+
+        today = datetime.now()
+        e += Paragraph(f"""
+        <font face=\"Arial-Narrow-Bold\">Nombre del Cliente:</font> {signature['client_name']}<br/>
+        <font face=\"Arial-Narrow-Bold\">Fecha del Informe:</font> {today.strftime('%Y-%m-%dT%H:%M:%SZ')}<br/>
+        <font face=\"Arial-Narrow-Bold\">Periodo del Informe:</font> Entre {self.db._start_date} y {self.db._end_date}<br/>
+        <font face=\"Arial-Narrow-Bold\">Preparado por:</font> {signature['author']}
+        """, self.theme.get_style(ParagraphStyles.NR_TEXTO_1))
+
+        e += Spacer(0, 1.5 * cm)
+
+        e += Paragraph(f"© {today.year} Soluciones Netready, C.A. All Rights Reserved.",
+                    self.theme.get_style(ParagraphStyles.NR_TEXTO_ITALIC))
 
         e += PageBreak()
 
@@ -98,7 +114,7 @@ class Components:
         return self._table_maker(table_data)
 
     def _alarms_per_entity_table(self):
-        df = self.db.alarms_per_entity_table()
+        df = self.db.get_alarm_details_by_entity()
         df['AlarmDate'] = pd.to_datetime(df['AlarmDate'])
 
         # Excluir las alarmas con estado "New" y "OpenAlarm"
