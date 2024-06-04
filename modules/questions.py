@@ -400,12 +400,12 @@ class ListReorder:
             if idx == self.selected_idx:
                 if self.selecting:
                     stdscr.addstr(
-                        i + 2, 0, f"↕️ {display_text}", curses.A_REVERSE)
+                        i + 2, 0, f"↕️ ● {display_text}", curses.A_REVERSE)
                 else:
                     stdscr.addstr(
-                        i + 2, 0, f"> {display_text}", curses.A_REVERSE)
+                        i + 2, 0, f"» ● {display_text}")
             else:
-                stdscr.addstr(i + 2, 0, f"  {display_text}")
+                stdscr.addstr(i + 2, 0, f"  ○ {display_text}")
 
     def _handle_key_press(self, stdscr):
         key = stdscr.getch()
@@ -460,3 +460,8 @@ class ListReorder:
     def reorder(self):
         curses.wrapper(self._main)
         return self.items
+
+def select_date_range():
+    selector = DateSelector()
+
+    return (selector.select_date(), selector.select_date())

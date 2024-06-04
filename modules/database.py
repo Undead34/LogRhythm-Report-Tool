@@ -1,6 +1,7 @@
+from datetime import date, datetime, time
+import pandas as pd
 import pyodbc
 import sys
-import pandas as pd
 
 from utils.constants import DB_HOST, DB_USER, DB_PASS
 
@@ -156,12 +157,20 @@ class MSQLServer:
         entity_ids_str = ', '.join(map(str, entity_ids))
 
         # Consulta 1: Extraer datos de Alarm y AlarmRule
-        sql1 = f"""
-        SELECT TOP (100)
+        sql = f"""
+        -- Parte 1: Obtener los IDs de Alarmas relevantes
+        WITH AlarmIDs AS (
+            SELECT alm.[AlarmID]
+            FROM [LogRhythm_Alarms].[dbo].[Alarm] alm WITH (NOLOCK)
+            WHERE alm.[EntityID] IN ({entity_ids_str})
+            AND alm.[DateInserted] BETWEEN '2024-04-01T16:00:00Z' AND '2024-05-01T03:59:59Z'
+        )
+        -- Parte 2: Obtener los datos completos usando los IDs de Alarmas
+        SELECT
             alm.[EntityID],
-            alm.[AlarmID],
-            alm.[AlarmRuleID],
-            alm.[AlarmStatus],
+            alm.[AlarmDate],
+            alm.[DateInserted],
+            alm.[DateUpdated],
             CASE 
                 WHEN alm.[AlarmStatus] = 0 THEN 'New'
                 WHEN alm.[AlarmStatus] = 1 THEN 'OpenAlarm'
@@ -174,28 +183,21 @@ class MSQLServer:
                 WHEN alm.[AlarmStatus] = 8 THEN 'Reported'
                 WHEN alm.[AlarmStatus] = 9 THEN 'Monitor'
                 ELSE 'Unknown'
-            END AS AlarmStatusText,
-            alm.[AlarmDate],
-            alm.[DateInserted],
-            alm.[DateUpdated],
-            atm.[MARCMsgID],
+            END AS AlarmStatus,
             emsg.[AlarmType],
             emsg.[Name],
-            emsg.[Enabled],
-            lrem.[MsgID],
             lrem.[Priority]
-        FROM [LogRhythm_Alarms].[dbo].[Alarm] alm WITH (NOLOCK)
-        JOIN [LogRhythm_Alarms].[dbo].[AlarmToMARCMsg] atm WITH (NOLOCK)
-            ON alm.[AlarmID] = atm.[AlarmID]
+        FROM AlarmIDs ids
+        JOIN [LogRhythm_Alarms].[dbo].[Alarm] alm WITH (NOLOCK)
+            ON ids.[AlarmID] = alm.[AlarmID]
         JOIN LogRhythmEMDB.dbo.AlarmRule emsg WITH (NOLOCK)
             ON alm.[AlarmRuleID] = emsg.[AlarmRuleID]
+        JOIN [LogRhythm_Alarms].[dbo].[AlarmToMARCMsg] atm WITH (NOLOCK)
+            ON alm.[AlarmID] = atm.[AlarmID]
         JOIN [LogRhythm_Events].[dbo].[Msg] lrem WITH (NOLOCK)
-            ON lrem.[MsgID] = atm.[MARCMsgID]
-        WHERE 
-            alm.[EntityID] IN ({entity_ids_str}) AND
-            alm.[DateInserted] BETWEEN '2024-04-01T16:00:00Z' AND '2024-05-01T03:59:59Z';
+            ON lrem.[MsgID] = atm.[MARCMsgID];
         """
-        cursor = self._conn.execute(sql1)
+        cursor = self._conn.execute(sql)
         data = cursor.fetchall()
 
         # Especificar los nombres de las columnas
@@ -208,3 +210,13 @@ class MSQLServer:
         df = pd.DataFrame([tuple(row) for row in data], columns=columns)
 
         return df
+
+    def set_date_range(self, dates: tuple[date, date]):
+        start, end = dates
+        # Asegúrate de que el tiempo final sea 23:59:59 para incluir todo el día final
+        end = datetime.combine(end, time(23, 59, 59))
+
+        start_str = start.strftime('%Y-%m-%dT%H:%M:%SZ')
+        end_str = end.strftime('%Y-%m-%dT%H:%M:%SZ')
+        print(f"Formatted start date: {start_str}")
+        print(f"Formatted end date: {end_str}")

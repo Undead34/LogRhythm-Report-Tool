@@ -16,7 +16,7 @@ from modules.database import MSQLServer
 from modules.elastic import Elastic
 from modules.report import Report
 
-from modules.questions import get_output_details, get_signature, select_entities, get_client_details, select_tables, select_charts, DateSelector, ListReorder
+from modules.questions import get_output_details, get_signature, select_entities, get_client_details, select_tables, select_charts, select_date_range, ListReorder
 from utils import get_file_name, execute_callbacks
 
 
@@ -35,6 +35,13 @@ def main():
 
     print("Entidades seleccionadas:")
     print(entities)
+    print("")
+
+    dates = select_date_range()
+    db.set_date_range(dates)
+
+    print("Rango de fechas seleccionado:")
+    print(dates)
     print("")
 
     default_signature = {
