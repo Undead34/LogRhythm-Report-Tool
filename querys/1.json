@@ -1,26 +1,34 @@
 {
-  "name": "COASDASD",
-  "": "",
+  "name": "Consulta de Eventos de Seguridad desde el Inicio del Mes hasta Hoy",
+  "description": "Esta consulta busca eventos de seguridad en los logs que cumplen con las siguientes condiciones:\n\nEl campo normalDate está dentro del rango desde el inicio del mes actual hasta la fecha y hora actuales.\nLos documentos están ordenados por normalDate en orden descendente.\nLa consulta incluye una agregación que agrupa los resultados en intervalos de 3 horas.\nFiltra documentos donde rootEntityName es \"ensa\", msgClassName es \"attack\", directionName es \"external\", isEvent es true, y msgSourceTypeName contiene \"syslog - fortinet fortigate v6.0\".",
+  "method": "POST",
+  "index": "/logs-*",
+  "uri": "/_search",
+  "query_strings": "rest_total_hits_as_int=true&ignore_throttled=true",
   "query": {
-    "aggs": {
-      "2": {
-        "terms": {
-          "field": "originIp",
-          "size": 10,
-          "order": {
-            "_count": "desc"
-          }
+    "size": 500,
+    "sort": [
+      {
+        "normalDate": {
+          "order": "desc",
+          "unmapped_type": "boolean"
         }
       }
-    },
-    "size": 0,
+    ],
     "_source": {
       "excludes": []
     },
-    "stored_fields": [
-      "*"
-    ],
-    "script_fields": {},
+    "aggs": {
+      "2": {
+        "date_histogram": {
+          "field": "normalDate",
+          "interval": "3h",
+          "time_zone": "America/New_York",
+          "min_doc_count": 1
+        }
+      }
+    },
+    "stored_fields": ["*"],
     "docvalue_fields": [
       {
         "field": "insertedDate",
@@ -41,8 +49,8 @@
           {
             "range": {
               "normalDate": {
-                "gte": 1716918484742,
-                "lte": 1717523284742,
+                "gte": 1717214400000,
+                "lte": 1718028406859,
                 "format": "epoch_millis"
               }
             }
@@ -56,8 +64,8 @@
                   "bool": {
                     "should": [
                       {
-                        "match_phrase": {
-                          "entityName": "ensa ti"
+                        "match": {
+                          "rootEntityName": "ensa"
                         }
                       }
                     ],
@@ -71,7 +79,7 @@
                         "bool": {
                           "should": [
                             {
-                              "match_phrase": {
+                              "match": {
                                 "msgClassName": "attack"
                               }
                             }
@@ -81,62 +89,50 @@
                       },
                       {
                         "bool": {
-                          "should": [
+                          "filter": [
                             {
-                              "match_phrase": {
-                                "directionName": "external"
+                              "bool": {
+                                "should": [
+                                  {
+                                    "match": {
+                                      "directionName": "external"
+                                    }
+                                  }
+                                ],
+                                "minimum_should_match": 1
+                              }
+                            },
+                            {
+                              "bool": {
+                                "filter": [
+                                  {
+                                    "bool": {
+                                      "should": [
+                                        {
+                                          "match": {
+                                            "isEvent": true
+                                          }
+                                        }
+                                      ],
+                                      "minimum_should_match": 1
+                                    }
+                                  },
+                                  {
+                                    "bool": {
+                                      "should": [
+                                        {
+                                          "match_phrase": {
+                                            "msgSourceTypeName": "syslog - fortinet fortigate v6.0"
+                                          }
+                                        }
+                                      ],
+                                      "minimum_should_match": 1
+                                    }
+                                  }
+                                ]
                               }
                             }
-                          ],
-                          "minimum_should_match": 1
-                        }
-                      }
-                    ]
-                  }
-                }
-              ]
-            }
-          },
-          {
-            "bool": {
-              "filter": [
-                {
-                  "bool": {
-                    "should": [
-                      {
-                        "match_phrase": {
-                          "entityName": "ensa ti"
-                        }
-                      }
-                    ],
-                    "minimum_should_match": 1
-                  }
-                },
-                {
-                  "bool": {
-                    "filter": [
-                      {
-                        "bool": {
-                          "should": [
-                            {
-                              "match_phrase": {
-                                "msgClassName": "attack"
-                              }
-                            }
-                          ],
-                          "minimum_should_match": 1
-                        }
-                      },
-                      {
-                        "bool": {
-                          "should": [
-                            {
-                              "match_phrase": {
-                                "directionName": "external"
-                              }
-                            }
-                          ],
-                          "minimum_should_match": 1
+                          ]
                         }
                       }
                     ]
@@ -145,10 +141,14 @@
               ]
             }
           }
-        ],
-        "should": [],
-        "must_not": []
+        ]
       }
-    }
+    },
+    "highlight": {
+      "fields": {
+        "*": {}
+      }
+    },
+    "timeout": "30000ms"
   }
 }

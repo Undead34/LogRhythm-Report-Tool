@@ -1,12 +1,10 @@
 from elasticsearch import Elasticsearch
-from prettytable import PrettyTable
-
 import glob
 import json
 import os
 
 
-class Package():
+class Package:
     def __init__(self, elastic) -> None:
         self._elastic: Elastic = elastic
         self.query = None
@@ -17,12 +15,13 @@ class Package():
     def parser():
         pass
 
-class Elastic():
+
+class Elastic:
     def __init__(self) -> None:
         self._esearch = Elasticsearch(["http://localhost:9200"])
         self._querys = []
 
-    def loadQuerys(self, folder: str) -> None:
+    def loadQuerys(self, folder: str) -> list[Package]:
         folder = os.path.realpath(folder)
 
         if not os.path.exists(folder):
@@ -31,8 +30,7 @@ class Elastic():
         if not os.path.isdir(folder):
             raise NotADirectoryError("Por favor, introduce una ruta válida")
 
-        json_files = glob.glob(os.path.join(
-            folder, '**/*.json'), recursive=True)
+        json_files = glob.glob(os.path.join(folder, "**/*.json"), recursive=True)
 
         try:
             for file in json_files:
@@ -41,19 +39,17 @@ class Elastic():
                     data = json.loads(data)
 
                 self._querys.append(data)
+
+            querys = []
+
+            for q in self._querys:
+                p = Package(self)
+                p.query = q
+                querys.append(p)
+
+            return querys
         except Exception as e:
-            print("An error occurred while executing the {0} file, please check: {1}".format(
-                file, e))
-
-    def run(self) -> list[Package]:
-        querys = []
-
-        for q in self._querys:
-            p = Package(self)
-            p.query = q
-            querys.append(p)
-
-        return querys
+            print("An error occurred while executing the {0} file, please check: {1}".format(file, e))
 
     def search(self, query: dict) -> None:
         config: dict = query.get("config")
@@ -64,7 +60,7 @@ class Elastic():
         return r
 
 
-class Normalizer():
+class Normalizer:
     def __init__(self) -> None:
         pass
 
@@ -94,6 +90,7 @@ class Normalizer():
         if element is not None:
             # Establecemos el valor en el último elemento del camino
             element[paths[-1]] = value
+
 
 # data = Normalizer.set_xpath(config.get("xpath"), r)
 # print(data)

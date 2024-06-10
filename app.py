@@ -16,7 +16,13 @@ from modules.database import MSQLServer
 from modules.elastic import Elastic
 from modules.report import Report
 
-from modules.questions import select_entities, select_tables, select_charts, select_date_range, ListReorder
+from modules.questions import (
+    select_entities,
+    select_tables,
+    select_charts,
+    select_date_range,
+    ListReorder,
+)
 from modules.questions import get_output_details, get_signature, get_client_details
 from utils import get_file_name, execute_callbacks
 
@@ -24,12 +30,18 @@ from utils import get_file_name, execute_callbacks
 def main():
     # Elastic Init
     elastic = Elastic()
-    elastic.loadQuerys("./querys")
-    querys = elastic.run()
+    querys = elastic.loadQuerys("./querys")
+
+    for q in querys:
+        print(q.run())
+
+    return
 
     # Database Init
     db = MSQLServer()
-    print("Bienvenido a «LogRhythm Report Tool», para crear su reporte primero tenemos que configurar algunas cosas.\n")
+    print(
+        "Bienvenido a «LogRhythm Report Tool», para crear su reporte primero tenemos que configurar algunas cosas.\n"
+    )
 
     entities = select_entities(db)
     db.set_entity_ids(entities)
@@ -50,7 +62,6 @@ def main():
         "author": "Netready Solutions",
         "subject": "Netready Solutions - LogRhythm",
         "keywords": ["LogRhythm", "Netready Solutions", "Report", "Confidential"],
-
         # Static
         "producer": "LogRhythm Report Tool - github.com/Undead34",
         "creator": "LogRhythm Report Tool - @Undead34",
@@ -82,7 +93,8 @@ def main():
 
     # Combinar DataFrames y reordenar
     unordered_elements = pd.concat(
-        [selected_tables, selected_charts], ignore_index=True)
+        [selected_tables, selected_charts], ignore_index=True
+    )
 
     ordered_elements = ListReorder(unordered_elements).reorder()
 
