@@ -30,18 +30,11 @@ from utils import get_file_name, execute_callbacks
 def main():
     # Elastic Init
     elastic = Elastic()
-    querys = elastic.loadQuerys("./querys")
-
-    for q in querys:
-        print(q.run())
-
-    return
+    querys = elastic.load_queries("./querys")
 
     # Database Init
     db = MSQLServer()
-    print(
-        "Bienvenido a «LogRhythm Report Tool», para crear su reporte primero tenemos que configurar algunas cosas.\n"
-    )
+    print("Bienvenido a «LogRhythm Report Tool», para crear su reporte primero tenemos que configurar algunas cosas.\n")
 
     entities = select_entities(db)
     db.set_entity_ids(entities)
@@ -92,9 +85,7 @@ def main():
     selected_charts = select_charts(charts)
 
     # Combinar DataFrames y reordenar
-    unordered_elements = pd.concat(
-        [selected_tables, selected_charts], ignore_index=True
-    )
+    unordered_elements = pd.concat([selected_tables, selected_charts], ignore_index=True)
 
     ordered_elements = ListReorder(unordered_elements).reorder()
 

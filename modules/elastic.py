@@ -1,104 +1,83 @@
-from elasticsearch import Elasticsearch
+import os
 import glob
 import json
-import os
+import pandas as pd
+from elasticsearch import Elasticsearch
 
 
 class Package:
-    def __init__(self, elastic) -> None:
-        self._elastic: Elastic = elastic
-        self.query = None
+    def __init__(self, elastic: 'Elastic', query: dict) -> None:
+        self._es = elastic._es
+        self._name = query.get("name")
+        self._mode = query.get("mode")
+        self._index = query.get("index")
+        self._query = query.get("query")
+        self._description = query.get("description")
 
-    def run(self):
-        self._elastic.search(self.query)
+    def run(self) -> pd.DataFrame:
+        if not self._index or not self._query:
+            raise ValueError("Index and query must be provided.")
 
-    def parser():
-        pass
+        index_str = ",".join(self._index) if isinstance(self._index, list) else self._index
+        data = None
+
+        if self._mode == "multi":
+            response = self._es.msearch(index=index_str, body=self._query, _source=True)
+            data = self._extract_hits(response)
+        else:
+            response = self._es.search(index=index_str, body=self._query, _source=True)
+            data = self._extract_hits(response)
+        
+        # Extract the 'fields' dictionary from each hit and flatten it
+        all_fields = [hit['fields'] for hit in data]
+        
+        # Ensure all field dictionaries have the same keys, fill missing keys with None
+        all_keys = set(key for fields in all_fields for key in fields)
+        standardized_fields = []
+        for fields in all_fields:
+            standardized_fields.append({key: fields.get(key, [None]) for key in all_keys})
+
+        # Create DataFrame from standardized fields
+        df = pd.DataFrame(standardized_fields)
+        
+        # Flatten lists to single values where possible
+        df = df.apply(lambda col: col.map(lambda x: x[0] if isinstance(x, list) and len(x) == 1 else x))
+
+        return df
+
+    def _extract_hits(self, response):
+        if "responses" in response:  # msearch response
+            hits = []
+            for res in response["responses"]:
+                hits.extend(res.get("hits", {}).get("hits", []))
+            return hits
+        else:  # search response
+            return response.get("hits", {}).get("hits", [])
 
 
 class Elastic:
-    def __init__(self) -> None:
-        self._esearch = Elasticsearch(["http://localhost:9200"])
-        self._querys = []
+    def __init__(self, host: str = "http://localhost:9200") -> None:
+        self._es = Elasticsearch([host])
 
-    def loadQuerys(self, folder: str) -> list[Package]:
-        folder = os.path.realpath(folder)
+    def load_queries(self, folder: str) -> list[Package]:
+        folder_path = os.path.realpath(folder)
 
-        if not os.path.exists(folder):
-            raise FileNotFoundError("Por favor, introduce una ruta válida")
+        if not os.path.exists(folder_path):
+            raise FileNotFoundError(f"La ruta {folder_path} no existe.")
 
-        if not os.path.isdir(folder):
-            raise NotADirectoryError("Por favor, introduce una ruta válida")
+        if not os.path.isdir(folder_path):
+            raise NotADirectoryError(f"{folder_path} no es un directorio.")
 
-        json_files = glob.glob(os.path.join(folder, "**/*.json"), recursive=True)
+        json_files = glob.glob(os.path.join(folder_path, "**/*.json"), recursive=True)
 
-        try:
-            for file in json_files:
+        queries = []
+
+        for file in json_files:
+            try:
                 with open(file, "r") as f:
-                    data = f.read()
-                    data = json.loads(data)
-
-                self._querys.append(data)
-
-            querys = []
-
-            for q in self._querys:
-                p = Package(self)
-                p.query = q
-                querys.append(p)
-
-            return querys
-        except Exception as e:
-            print("An error occurred while executing the {0} file, please check: {1}".format(file, e))
-
-    def search(self, query: dict) -> None:
-        config: dict = query.get("config")
-        query: dict = query.get("query")
-
-        r: dict = self._esearch.search(index="logs-*", body=query)
-
-        return r
-
-
-class Normalizer:
-    def __init__(self) -> None:
-        pass
-
-    @staticmethod
-    def table():
-        pass
-
-    @staticmethod
-    def set_xpath(xpath: str, element):
-        paths = xpath.split(".")
-
-        for p in paths:
-            if element is None:
-                break
-            element = element.get(p, None)
-
-        return element
-
-    @staticmethod
-    def set_xpath(xpath: str, element, value):
-        paths = xpath.split(".")
-        for p in paths[:-1]:  # Recorremos todos los elementos excepto el último
-            if element is None:
-                break
-            element = element.get(p, None)
-
-        if element is not None:
-            # Establecemos el valor en el último elemento del camino
-            element[paths[-1]] = value
-
-
-# data = Normalizer.set_xpath(config.get("xpath"), r)
-# print(data)
-
-# # table = PrettyTable()
-
-# # table.field_names = ["Key", "#"]
-# # for x in data:
-# #     table.add_row([x.get("key"), x.get("doc_count")])
-
-# # print(table)
+                    data = json.load(f)
+                queries.append(Package(self, data))
+            except (json.JSONDecodeError, IOError) as e:
+                print(f"Error al procesar el archivo {file}: {e}")
+        
+        return queries

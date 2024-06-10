@@ -1,10 +1,8 @@
 {
   "name": "Consulta de Eventos de Seguridad desde el Inicio del Mes hasta Hoy",
   "description": "Esta consulta busca eventos de seguridad en los logs que cumplen con las siguientes condiciones:\n\nEl campo normalDate está dentro del rango desde el inicio del mes actual hasta la fecha y hora actuales.\nLos documentos están ordenados por normalDate en orden descendente.\nLa consulta incluye una agregación que agrupa los resultados en intervalos de 3 horas.\nFiltra documentos donde rootEntityName es \"ensa\", msgClassName es \"attack\", directionName es \"external\", isEvent es true, y msgSourceTypeName contiene \"syslog - fortinet fortigate v6.0\".",
-  "method": "POST",
-  "index": "/logs-*",
-  "uri": "/_search",
-  "query_strings": "rest_total_hits_as_int=true&ignore_throttled=true",
+  "index": ["logs-*"],
+  "mode": "single",
   "query": {
     "size": 500,
     "sort": [
