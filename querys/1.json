@@ -1,14 +1,12 @@
 {
-  "config": {
-    "type": "",
-    "xpath": "aggregations.2.buckets"
-  },
+  "name": "COASDASD",
+  "": "",
   "query": {
     "aggs": {
       "2": {
         "terms": {
-          "field": "msgClassName",
-          "size": 50,
+          "field": "originIp",
+          "size": 10,
           "order": {
             "_count": "desc"
           }
@@ -41,30 +39,113 @@
       "bool": {
         "must": [
           {
-            "query_string": {
-              "query": "entityName:\"ensa ti\"",
-              "analyze_wildcard": true,
-              "default_field": "*"
-            }
-          },
-          {
-            "query_string": {
-              "query": "entityName:\"ensa ti\"",
-              "analyze_wildcard": true,
-              "default_field": "*"
-            }
-          },
-          {
             "range": {
               "normalDate": {
-                "gte": 1714536000000,
-                "lte": 1717214399999,
+                "gte": 1716918484742,
+                "lte": 1717523284742,
                 "format": "epoch_millis"
               }
             }
           }
         ],
-        "filter": [],
+        "filter": [
+          {
+            "bool": {
+              "filter": [
+                {
+                  "bool": {
+                    "should": [
+                      {
+                        "match_phrase": {
+                          "entityName": "ensa ti"
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                },
+                {
+                  "bool": {
+                    "filter": [
+                      {
+                        "bool": {
+                          "should": [
+                            {
+                              "match_phrase": {
+                                "msgClassName": "attack"
+                              }
+                            }
+                          ],
+                          "minimum_should_match": 1
+                        }
+                      },
+                      {
+                        "bool": {
+                          "should": [
+                            {
+                              "match_phrase": {
+                                "directionName": "external"
+                              }
+                            }
+                          ],
+                          "minimum_should_match": 1
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "bool": {
+              "filter": [
+                {
+                  "bool": {
+                    "should": [
+                      {
+                        "match_phrase": {
+                          "entityName": "ensa ti"
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                },
+                {
+                  "bool": {
+                    "filter": [
+                      {
+                        "bool": {
+                          "should": [
+                            {
+                              "match_phrase": {
+                                "msgClassName": "attack"
+                              }
+                            }
+                          ],
+                          "minimum_should_match": 1
+                        }
+                      },
+                      {
+                        "bool": {
+                          "should": [
+                            {
+                              "match_phrase": {
+                                "directionName": "external"
+                              }
+                            }
+                          ],
+                          "minimum_should_match": 1
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ],
         "should": [],
         "must_not": []
       }

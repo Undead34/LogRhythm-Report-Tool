@@ -70,7 +70,7 @@ class Components:
         e += Spacer(0, 4.5 * cm)
         e += Paragraph(signature["title"],
                        t.get_style(ParagraphStyles.NR_TITULO_1))
-        e += Spacer(0, 4 * cm)
+        e += Spacer(0, 3.5 * cm)
 
         e += Image(logo,
                    width=10.37 * cm,
@@ -81,13 +81,11 @@ class Components:
 
         today = datetime.now()
         e += Paragraph(f"""
-        <font face=\"Arial-Narrow-Bold\">Nombre del Cliente:</font> {signature['client_name']}<br/>
-        <font face=\"Arial-Narrow-Bold\">Fecha del Informe:</font> {today.strftime('%Y-%m-%dT%H:%M:%SZ')}<br/>
-        <font face=\"Arial-Narrow-Bold\">Periodo del Informe:</font> Entre {self.db._start_date} y {self.db._end_date}<br/>
+        <font face=\"Arial-Narrow-Bold\">Reporte preparado para:</font> {name}<br/>
+        <font face=\"Arial-Narrow-Bold\">Fecha de creación:</font> {today.strftime('%Y-%m-%dT%H:%M:%SZ')}<br/>
+        <font face=\"Arial-Narrow-Bold\">Periodo del reporte:</font> Entre {self.db._start_date} y {self.db._end_date}<br/>
         <font face=\"Arial-Narrow-Bold\">Preparado por:</font> {signature['author']}
         """, self.theme.get_style(ParagraphStyles.NR_TEXTO_1))
-
-        e += Spacer(0, 1.5 * cm)
 
         e += Paragraph(f"© {today.year} Soluciones Netready, C.A. All Rights Reserved.",
                     self.theme.get_style(ParagraphStyles.NR_TEXTO_ITALIC))
@@ -121,7 +119,7 @@ class Components:
         df_filtered = df[~df['AlarmStatus'].isin(['New', 'OpenAlarm'])]
 
         # Agrupar los datos por 'AlarmName' y 'AlarmStatus'
-        alarms = df_filtered.groupby(['Entity', 'AlarmName', 'AlarmStatus']).size(
+        alarms = df_filtered.groupby(['EntityName', 'AlarmName', 'AlarmStatus']).size(
         ).unstack(fill_value=0).reset_index()
 
         table_data = [alarms.columns.to_list()] + alarms.values.tolist()
