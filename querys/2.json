@@ -114,6 +114,18 @@
                                       ],
                                       "minimum_should_match": 1
                                     }
+                                  },
+                                  {
+                                    "bool": {
+                                      "should": [
+                                        {
+                                          "match_phrase": {
+                                            "msgSourceTypeName": "syslog - fortinet fortigate v6.0"
+                                          }
+                                        }
+                                      ],
+                                      "minimum_should_match": 1
+                                    }
                                   }
                                 ]
                               }

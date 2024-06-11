@@ -1,22 +1,16 @@
-from reportlab.platypus import PageBreak, Image, Spacer, Table, TableStyle, Paragraph
-from reportlab.platypus import Table, TableStyle, Indenter
-from reportlab.pdfbase.pdfmetrics import stringWidth
-from reportlab.graphics.shapes import Line, Drawing
-from reportlab.lib import colors
-
-from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER, TA_JUSTIFY
-from reportlab.lib.pagesizes import LETTER
-from reportlab.lib.units import inch, cm
+from reportlab.platypus import PageBreak, Image, Spacer, Paragraph
+from reportlab.lib.units import cm
 
 from datetime import datetime
 import pandas as pd
 
 from modules.template.theme import ParagraphStyles
+from utils import ElementList
 from .charts import Charts
+from .tables import Tables
 
 from typing import TYPE_CHECKING
 
-from utils import ElementList
 
 if TYPE_CHECKING:
     from modules.report import Report
@@ -29,34 +23,83 @@ class Components:
         self.db = report.database
         self.pkg = report.packages
         self.charts = Charts(self)
+        self.tables = Tables(self)
 
         # Atributo privado _available_tables
         self._available_tables = pd.DataFrame([
             {
-                "ID": "entities_table",
-                "Name": "Tabla de entidades disponibles en LogRhythm",
-                "Callback": self._entities_table
+                "ID": "table_of_entities",
+                "Name": (
+                    "Tabla de Entidades en LogRhythm, contiene las columnas "
+                    "[«Entity ID», «Entity Name»]."
+                ),
+                "Callback": self.tables.table_of_entities
             },
             {
-                "ID": "alarms_per_entity_table",
-                "Name": "Tabla de alarmas por entidad",
-                "Callback": self._alarms_per_entity_table
+                "ID": "alarm_status_table",
+                "Name": (
+                    "Tabla de estados de alarma reportados en LogRhythm.\n\n"
+                    "        Muestra cuantas alarmas están marcadas como:\n"
+                    "            'Auto Closed', 'Reported', 'Resolved', 'False Positive' o 'Monitor'\n\n"
+                    "        Se excluyen los estados de alarma 'Nueva' y 'OpenAlarm', contiene las columnas:\n"
+                    "            [«Entity Name», «Alarm Name», «Auto Closed»?, «Reported»?, «Resolved»?, «False Positive»?, «Monitor»?].\n"
+                ),
+                "Callback": self.tables.alarm_status_table
             }
         ])
 
         # Atributo privado _available_charts
         self._available_charts = pd.DataFrame([
             {
-                "ID": "entities_chart",
-                "Name": "Gráfico de entidades disponibles en LogRhythm",
-                "Callback": self.charts.histogram_entities_chart
+                "ID": "trends_in_alarm_activation_graph",
+                "Name": (
+                    "Gráfico de Tendencias en la Activación de Alarmas\n\n"
+                    "        Este gráfico muestra la evolución temporal y la frecuencia de activación de diferentes alarmas, permitiendo identificar tendencias y picos en los datos.\n"),
+                "Callback": self.charts.trends_in_alarm_activation_graph
             },
             {
-                "ID": "alarms_per_entity_chart",
-                "Name": "Gráfico de alarmas por entidad",
-                "Callback": self.charts.stacked_bar_entities_chart
+                "ID": "stacked_bar_chart_by_alarm_status",
+                "Name": (
+                    "Gráfico de Distribución de Alarmas por Estado\n\n"
+                    "        Este gráfico de barras apiladas muestra la distribución de diferentes tipos de alarmas según su estado. Las alarmas con estado 'New' y 'Open Alarm' han sido excluidas para una mejor claridad.\n"),
+                "Callback": self.charts.stacked_bar_chart_by_alarm_status
             },
+            {
+                "ID": "stacked_bar_chart_by_alarm_type",
+                "Name": (
+                    "Gráfico de Barras Apiladas por Tipo de Alarma y Fecha\n\n"
+                    "        Este gráfico de barras apiladas muestra la cantidad de activaciones de diferentes alarmas a lo largo del tiempo. Se han seleccionado las diez alarmas con el mayor número total de activaciones durante todo el período analizado.\n"),
+                "Callback": self.charts.stacked_bar_chart_by_alarm_type
+            },
+            {
+                "ID": "heatmap_alarms_by_day_and_hour",
+                "Name": (
+                    "Mapa de Calor de Activaciones de Alarmas\n\n"
+                    "        Este mapa de calor muestra la frecuencia de activaciones de alarmas en diferentes días y horas, permitiendo identificar patrones temporales de activaciones.\n"),
+                "Callback": self.charts.heatmap_alarms_by_day_and_hour
+            },
+            {
+                "ID": "scatter_plot_time_to_detection",
+                "Name": (
+                    "Gráfico de Dispersión de Duración de Alarmas\n\n"
+                    "        Este gráfico de dispersión muestra la duración de cada activación de alarma, ayudando a identificar alarmas que tienen una duración inusualmente larga.\n"),
+                "Callback": self.charts.scatter_plot_time_to_detection
+            },
+                        {
+                "ID": "box_plot_time_to_detection",
+                "Name": "box_plot_alarm_durations",
+                "Callback": self.charts.box_plot_time_to_detection
+            }
         ])
+
+
+
+
+    def get_tables(self) -> pd.DataFrame:
+        return self._available_tables.copy()
+
+    def get_charts(self):
+        return self._available_charts.copy()
 
     def cover_page(self, signature: dict, name: str, logo: str):
         t = self.theme
@@ -93,120 +136,3 @@ class Components:
         e += PageBreak()
 
         return e
-
-    def get_tables(self) -> pd.DataFrame:
-        return self._available_tables.copy()
-
-    def get_charts(self):
-        return self._available_charts.copy()
-
-    # Private Components
-    # =========================================================
-
-    def _entities_table(self):
-        """No sé, pero se puede llamar a self, aunque no se le pasa a la funcion que lo llama en utils, cosas de Python XD"""
-        entities = self.db.get_entities().get(['EntityID', 'Name'])
-
-        table_data = [entities.columns.to_list()] + entities.values.tolist()
-
-        return self._table_maker(table_data)
-
-    def _alarms_per_entity_table(self):
-        df = self.db.get_alarm_details_by_entity()
-        df['AlarmDate'] = pd.to_datetime(df['AlarmDate'])
-
-        # Excluir las alarmas con estado "New" y "OpenAlarm"
-        df_filtered = df[~df['AlarmStatus'].isin(['New', 'OpenAlarm'])]
-
-        # Agrupar los datos por 'AlarmName' y 'AlarmStatus'
-        alarms = df_filtered.groupby(['EntityName', 'AlarmName', 'AlarmStatus']).size(
-        ).unstack(fill_value=0).reset_index()
-
-        table_data = [alarms.columns.to_list()] + alarms.values.tolist()
-
-        return self._table_maker(table_data)
-
-    def _table_maker(self, data: list[list]):
-        # Verificar que hay más que solo los encabezados
-        if not data or len(data) == 1:
-            return []
-
-        rows, cols = len(data), len(data[0])
-        left_margin, right_margin, sangria = self.report.leftMargin, self.report.rightMargin, 0 * cm
-        usable_width = LETTER[0] - left_margin - right_margin - sangria
-
-        header_style = self.theme.get_style(ParagraphStyles.NR_TABLE_HEADER_1)
-        body_style = self.theme.get_style(
-            ParagraphStyles.NR_TABLE_HEADER_CONTENT_1)
-
-        padding = 12  # Padding adicional
-
-        # Calculamos los anchos iniciales de los encabezados y el contenido
-        header_widths = [stringWidth(str(
-            data[0][col]), header_style.fontName, header_style.fontSize) + padding for col in range(cols)]
-        content_widths = [max(stringWidth(str(data[row][col]), body_style.fontName,
-                              body_style.fontSize) + padding for row in range(1, rows)) for col in range(cols)]
-        col_widths = [max(h, c) for h, c in zip(header_widths, content_widths)]
-
-        total_width = sum(col_widths)
-        min_header_widths = [stringWidth(str(
-            data[0][col]), header_style.fontName, header_style.fontSize) + padding for col in range(cols)]
-
-        if total_width > usable_width:
-            # Ajustamos las columnas proporcionalmente
-            scale_factor = usable_width / total_width
-            col_widths = [w * scale_factor for w in col_widths]
-
-            # Verificamos y ajustamos los anchos mínimos de los encabezados
-            for i in range(cols):
-                if col_widths[i] < min_header_widths[i]:
-                    col_widths[i] = min_header_widths[i]
-
-            # Recalculamos el ancho total después del ajuste
-            total_width = sum(col_widths)
-            if total_width > usable_width:
-                # Si aún se excede el ancho utilizable, volvemos a escalar proporcionalmente
-                remaining_width = usable_width - sum(min_header_widths)
-                remaining_col_widths = [w - min_header_widths[i]
-                                        for i, w in enumerate(col_widths)]
-                remaining_total_width = sum(remaining_col_widths)
-
-                if remaining_total_width > 0:
-                    scale_factor = remaining_width / remaining_total_width
-                    for i in range(cols):
-                        col_widths[i] = min_header_widths[i] + \
-                            (col_widths[i] -
-                             min_header_widths[i]) * scale_factor
-                else:
-                    col_widths = min_header_widths
-
-        # Repartir el espacio restante manteniendo el aspecto ESPEREMOS QUE NO AFECTE EN NADA
-        remaining_space = usable_width - total_width
-        if remaining_space > 0:
-            additional_width = remaining_space / cols
-            col_widths = [w + additional_width for w in col_widths]
-
-        table_data = [[Paragraph(str(cell), header_style if i == 0 else body_style)
-                       for cell in row] for i, row in enumerate(data)]
-
-        table = Table(table_data, colWidths=col_widths)
-        style = TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#8cbbd2")),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Arial-Narrow-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-            ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 1), (-1, -1), 'Arial-Narrow'),
-            ('FONTSIZE', (0, 1), (-1, -1), 12),
-            ('TEXTCOLOR', (0, 1), (-1, -1), colors.HexColor("#333333")),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1),
-             [colors.whitesmoke, colors.lightgrey]),
-            ('WORDWRAP', (0, 0), (-1, -1), True)
-        ])
-        table.setStyle(style)
-
-        return [Indenter(left=sangria), table]

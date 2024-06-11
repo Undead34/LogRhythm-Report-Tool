@@ -15,6 +15,19 @@ class MSQLServer:
         self._start_date: str | None = None
         self._end_date: str | None = None
 
+        self._alarm_details_cache = None
+        self._alarm_durations_cached = None
+
+    def get_full_alarm_details_cached(self):
+        if self._alarm_details_cache is None:
+            self._alarm_details_cache = self.get_full_alarm_details()
+        return self._alarm_details_cache
+    
+    def get_alarm_durations_cached(self):
+        if self._alarm_durations_cached is None:
+            self._alarm_durations_cached = self.get_alarm_durations()
+        return self._alarm_durations_cached
+
     def _validate_entity_ids(self):
         if self._entity_ids is None or self._entity_ids.empty:
             print("Error: Se llamó a la base de datos sin setear los Entity IDs")
@@ -158,7 +171,7 @@ class MSQLServer:
                 WHEN AlarmStatus = 6 THEN 'Resolved'
                 WHEN AlarmStatus = 5 THEN 'False Positive'
                 WHEN AlarmStatus = 0 THEN 'New'
-                WHEN AlarmStatus = 1 THEN 'OpenAlarm'
+                WHEN AlarmStatus = 1 THEN 'Open Alarm'
                 WHEN AlarmStatus = 9 THEN 'Monitor' 
             END)) AS AlarmStatus
         FROM 
@@ -177,8 +190,8 @@ class MSQLServer:
         cursor = self._conn.execute(sql)
         data = cursor.fetchall()
 
-        columns = ['EntityName', 'AlarmDate',
-                   'AlarmID', 'AlarmName', 'AlarmStatus']
+        columns = ['Entity Name', 'Alarm Date',
+                   'Alarm ID', 'Alarm Name', 'Alarm Status']
 
         return pd.DataFrame([tuple(row) for row in data], columns=columns)
 
@@ -241,6 +254,73 @@ class MSQLServer:
             'DateInserted', 'DateUpdated',
             'AlarmStatus', 'AlarmType',
             'AlarmName', 'AlarmPriority',
+        ]
+
+        return pd.DataFrame([tuple(row) for row in data], columns=columns)
+
+    def get_alarm_durations(self) -> pd.DataFrame:
+        self._validate_entity_ids()
+        self._validate_dates()
+
+        entity_ids_str = self._get_entities_id()
+
+        sql = f"""
+        WITH AlarmIDs AS (
+            SELECT alm.[AlarmID]
+            FROM [LogRhythm_Alarms].[dbo].[Alarm] alm WITH (NOLOCK)
+            WHERE alm.[EntityID] IN ({entity_ids_str})
+            AND alm.[DateInserted] BETWEEN '{self._start_date}' AND '{self._end_date}'
+        )
+        SELECT 
+            a.EntityID,
+            a.AlarmDate,
+            a.DateInserted,
+            am.GeneratedOn,
+            am.OpenedOn,
+            am.InvestigatedOn,
+            am.ClosedOn,
+            ar.[Name] AS AlarmName,
+            lrem.[Priority],
+            DATEDIFF(SECOND, am.GeneratedOn, am.InvestigatedOn) AS TTD,
+            DATEDIFF(SECOND, am.InvestigatedOn, am.ClosedOn) AS TTR,
+            CASE 
+                WHEN a.AlarmStatus = 0 THEN 'New'
+                WHEN a.AlarmStatus = 1 THEN 'OpenAlarm'
+                WHEN a.AlarmStatus = 2 THEN 'Working'
+                WHEN a.AlarmStatus = 3 THEN 'Escalated'
+                WHEN a.AlarmStatus = 4 THEN 'AutoClosed'
+                WHEN a.AlarmStatus = 5 THEN 'FalsePositive'
+                WHEN a.AlarmStatus = 6 THEN 'Resolved'
+                WHEN a.AlarmStatus = 7 THEN 'UnResolved'
+                WHEN a.AlarmStatus = 8 THEN 'Reported'
+                WHEN a.AlarmStatus = 9 THEN 'Monitor'
+                ELSE 'Unknown'
+            END AS AlarmStatus,
+            ar.[AlarmType]
+        FROM AlarmIDs ids
+        JOIN LogRhythm_Alarms.dbo.Alarm a WITH (NOLOCK)
+            ON ids.[AlarmID] = a.[AlarmID]
+        JOIN LogRhythm_Alarms.dbo.AlarmToMARCMsg atm WITH (NOLOCK) 
+            ON a.AlarmID = atm.AlarmID
+        JOIN [LogRhythm_Alarms].[dbo].[AlarmMetrics] am WITH (NOLOCK) 
+            ON a.AlarmID = am.AlarmID
+        JOIN [LogRhythmEMDB].[dbo].AlarmRule ar
+            ON a.AlarmRuleID = ar.AlarmRuleID 
+        JOIN [LogRhythm_Events].[dbo].[Msg] lrem WITH (NOLOCK)
+            ON lrem.[MsgID] = atm.[MARCMsgID]
+        WHERE 
+            a.[EntityID] IN ({entity_ids_str})
+            AND a.DateInserted BETWEEN '{self._start_date}' AND '{self._end_date}'
+            AND am.GeneratedOn IS NOT NULL
+            AND am.InvestigatedOn IS NOT NULL
+        """
+        cursor = self._conn.execute(sql)
+        data = cursor.fetchall()
+
+        columns = [
+            'EntityID', 'AlarmDate', 'DateInserted', 'GeneratedOn', 'OpenedOn', 
+            'InvestigatedOn', 'ClosedOn', 'AlarmName', 'Priority', 'TTD', 'TTR', 
+            'AlarmStatus', 'AlarmType'
         ]
 
         return pd.DataFrame([tuple(row) for row in data], columns=columns)

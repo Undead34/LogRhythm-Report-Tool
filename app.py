@@ -105,3 +105,14 @@ if __name__ == "__main__":
     except Exception as e:
         print(e)
         sys.exit(1)
+
+# table = querys[0].run()
+# # print(table)
+# # table = table.groupby(['rootEntityName', 'originIp', 'impactedIp', 'msgSourceTypeName', 'severity', 'msgClassName', 'directionName']).size().reset_index(name='Counts')
+# # table = table.sort_values(by='Counts', ascending=False).reset_index(0)
+# # print(table)
+
+# # Agrupar y agregar los datos
+# chart_1 = table.groupby('originIp').sum().reset_index()
+# chart_1 = chart_1.sort_values(by='Counts', ascending=False).reset_index(drop=True)
+# return
