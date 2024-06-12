@@ -30,7 +30,7 @@ from utils import get_file_name, execute_callbacks
 def main():
     # Elastic Init
     elastic = Elastic()
-    querys = elastic.load_queries("./querys")
+    querys = elastic.load_queries("./querys/elastic")
 
     # Database Init
     db = MSQLServer()
