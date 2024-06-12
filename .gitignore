@@ -6,7 +6,7 @@ logs/
 temp/
 output/
 examples/
-
+.tmp
 # C extensions
 *.so
 
