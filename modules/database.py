@@ -324,3 +324,17 @@ class MSQLServer:
         ]
 
         return pd.DataFrame([tuple(row) for row in data], columns=columns)
+
+
+def _():
+    db = MSQLServer()
+    
+    db.set_date_range()
+    db.set_entity_ids()
+
+    print(db.get_entities())
+    print(db.get_alarm_count())
+    print(db.get_alarm_summary_by_entity_and_status())
+    print(db.get_alarm_details_by_entity())
+    print(db.get_full_alarm_details())
+    print(db.get_alarm_durations())
