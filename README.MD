@@ -52,7 +52,7 @@ LogRhythm Report Tool es una herramienta desarrollada por NetReady Solutions y e
 
 ## Contacto
 
-Para preguntas o soporte, por favor contacte a [NetReady Solutions](mailto:soporte@netready.com).
+Para preguntas o soporte, por favor contacte a [NetReady Solutions](mailto:soporte@netreadysolutions.com).
 
 ---
 
