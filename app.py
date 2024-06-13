@@ -28,27 +28,39 @@ from utils import get_file_name, execute_callbacks
 
 
 def main():
-    # Elastic Init
+    # Inicialización de Elastic y MSQLServer
+    # Se crean instancias de las clases Elastic y MSQLServer
     elastic = Elastic()
-    querys = elastic.load_queries("./querys/elastic")
+    database = MSQLServer()
 
-    # Database Init
-    db = MSQLServer()
-    print("Bienvenido a «LogRhythm Report Tool», para crear su reporte primero tenemos que configurar algunas cosas.\n")
+    # Selección de rango de fechas
+    # La función select_date_range() devuelve una tupla con la fecha de inicio y fin
+    (start, end) = select_date_range()
 
-    entities = select_entities(db)
-    db.set_entity_ids(entities)
+    # Imprime el rango de fechas seleccionado en formato ISO 8601
+    print("Rango de fechas seleccionado:")
+    print(f"Desde {start.strftime('%Y-%m-%dT%H:%M:%SZ')} hasta {end.strftime('%Y-%m-%dT%H:%M:%SZ')}")
+    print("")
 
+    # Establecer el rango de fechas en las instancias de Elastic y MSQLServer
+    elastic.set_date_range(start, end)
+    database.set_date_range(start, end)
+
+    # Selección de entidades
+    # La función select_entities(database) devuelve una lista de entidades seleccionadas de la base de datos
+    entities = select_entities(database)
+
+    # Imprime las entidades seleccionadas
     print("Entidades seleccionadas:")
     print(entities)
     print("")
 
-    dates = select_date_range()
-    start, end = db.set_date_range(dates)
-
-    print("Rango de fechas seleccionado:")
-    print(f"Desde {start} hasta {end}")
-    print("")
+    # Establecer las entidades seleccionadas en la base de datos
+    database.set_entity_ids(entities)
+    
+    # Cargar las consultas desde un archivo
+    # La función load_queries() carga consultas desde la ruta especificada
+    queries = elastic.load_queries("./querys/elastic")
 
     default_signature = {
         "title": "",
@@ -57,7 +69,7 @@ def main():
         "keywords": ["LogRhythm", "Netready Solutions", "Report", "Confidential"],
         # Static
         "producer": "LogRhythm Report Tool - github.com/Undead34",
-        "creator": "LogRhythm Report Tool - @Undead34",
+        "creator": "LogRhythm Report Tool - @Undead34"
     }
 
     signature = get_signature(default_signature)
@@ -71,7 +83,7 @@ def main():
     signature["client_logo"] = logo
 
     # Generate Report
-    report = Report(querys, db, output, signature)
+    report = Report(queries, database, output, signature)
     components = Components(report)
 
     report.elements += components.cover_page(signature, name, logo)

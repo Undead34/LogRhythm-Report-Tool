@@ -1,8 +1,10 @@
 {
+  "id": "40d28fac-063b-4540-8b5a-bf663f232427",
   "name": "Consulta de Eventos de Seguridad desde el Inicio del Mes hasta Hoy",
-  "description": "Esta consulta busca eventos de seguridad en los logs que cumplen con las siguientes condiciones:\n\nEl campo normalDate está dentro del rango desde el inicio del mes actual hasta la fecha y hora actuales.\nLos documentos están ordenados por normalDate en orden descendente.\nLa consulta incluye una agregación que agrupa los resultados en intervalos de 3 horas.\nFiltra documentos donde rootEntityName es \"ensa\", msgClassName es \"attack\", directionName es \"external\", isEvent es true, y msgSourceTypeName contiene \"syslog - fortinet fortigate v6.0\".",
-  "index": ["logs-*"],
   "mode": "single",
+  "index": ["logs-*"],
+  "description": "Esta consulta busca eventos de seguridad en los logs que cumplen con las siguientes condiciones:\n\nEl campo normalDate está dentro del rango desde el inicio del mes actual hasta la fecha y hora actuales.\nLos documentos están ordenados por normalDate en orden descendente.\nLa consulta incluye una agregación que agrupa los resultados en intervalos de 3 horas.\nFiltra documentos donde rootEntityName es \"ensa\", msgClassName es \"attack\", directionName es \"external\", isEvent es true, y msgSourceTypeName contiene \"syslog - fortinet fortigate v6.0\".",
+  "aggregation_result": false,
   "query": {
     "size": 500,
     "sort": [
@@ -47,8 +49,8 @@
           {
             "range": {
               "normalDate": {
-                "gte": 1717214400000,
-                "lte": 1718028406859,
+                "gte": "{{gte}}",
+                "lte": "{{lte}}",
                 "format": "epoch_millis"
               }
             }
@@ -109,18 +111,6 @@
                                         {
                                           "match": {
                                             "isEvent": true
-                                          }
-                                        }
-                                      ],
-                                      "minimum_should_match": 1
-                                    }
-                                  },
-                                  {
-                                    "bool": {
-                                      "should": [
-                                        {
-                                          "match_phrase": {
-                                            "msgSourceTypeName": "syslog - fortinet fortigate v6.0"
                                           }
                                         }
                                       ],

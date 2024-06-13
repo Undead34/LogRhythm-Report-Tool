@@ -1,45 +1,28 @@
 {
-  "name": "Consulta de Eventos de Seguridad desde el Inicio del Mes hasta Hoy",
-  "description": "Esta consulta busca eventos de seguridad en los logs que cumplen con las siguientes condiciones:\n\nEl campo normalDate está dentro del rango desde el inicio del mes actual hasta la fecha y hora actuales.\nLos documentos están ordenados por normalDate en orden descendente.\nLa consulta incluye una agregación que agrupa los resultados en intervalos de 3 horas.\nFiltra documentos donde rootEntityName es \"ensa\", msgClassName es \"attack\", directionName es \"external\", isEvent es true, y msgSourceTypeName contiene \"syslog - fortinet fortigate v6.0\".",
-  "index": ["logs-*"],
+  "id": "40d28fac-063b-4540-8b5a-bf663f232427",
+  "name": "Consulta de ejemplo con agregación",
   "mode": "single",
+  "index": ["logs-*"],
+  "description": "Consulta que devuelve términos más frecuentes por msgSourceTypeName ",
+  "aggregation_result": true,
   "query": {
-    "size": 500,
-    "sort": [
-      {
-        "normalDate": {
-          "order": "desc",
-          "unmapped_type": "boolean"
-        }
-      }
-    ],
-    "_source": {
-      "excludes": []
-    },
     "aggs": {
-      "2": {
-        "date_histogram": {
-          "field": "normalDate",
-          "interval": "3h",
-          "time_zone": "America/New_York",
-          "min_doc_count": 1
+      "3": {
+        "terms": {
+          "field": "msgSourceTypeName",
+          "size": 20,
+          "order": { "_count": "desc" }
         }
       }
     },
+    "size": 0,
+    "_source": { "excludes": [] },
     "stored_fields": ["*"],
+    "script_fields": {},
     "docvalue_fields": [
-      {
-        "field": "insertedDate",
-        "format": "date_time"
-      },
-      {
-        "field": "logDate",
-        "format": "date_time"
-      },
-      {
-        "field": "normalDate",
-        "format": "date_time"
-      }
+      { "field": "insertedDate", "format": "date_time" },
+      { "field": "logDate", "format": "date_time" },
+      { "field": "normalDate", "format": "date_time" }
     ],
     "query": {
       "bool": {
@@ -47,92 +30,28 @@
           {
             "range": {
               "normalDate": {
-                "gte": 1717214400000,
-                "lte": 1718028406859,
+                "gte": "{{gte}}",
+                "lte": "{{lte}}",
                 "format": "epoch_millis"
               }
+            }
+          },
+          {
+            "match": {
+              "isEvent": true
             }
           }
         ],
         "filter": [
           {
             "bool": {
-              "filter": [
-                {
-                  "bool": {
-                    "should": [
-                      {
-                        "match": {
-                          "rootEntityName": "ensa"
-                        }
-                      }
-                    ],
-                    "minimum_should_match": 1
-                  }
-                },
-                {
-                  "bool": {
-                    "filter": [
-                      {
-                        "bool": {
-                          "should": [
-                            {
-                              "match": {
-                                "msgClassName": "attack"
-                              }
-                            }
-                          ],
-                          "minimum_should_match": 1
-                        }
-                      },
-                      {
-                        "bool": {
-                          "filter": [
-                            {
-                              "bool": {
-                                "should": [
-                                  {
-                                    "match": {
-                                      "directionName": "external"
-                                    }
-                                  }
-                                ],
-                                "minimum_should_match": 1
-                              }
-                            },
-                            {
-                              "bool": {
-                                "filter": [
-                                  {
-                                    "bool": {
-                                      "should": [
-                                        {
-                                          "match": {
-                                            "isEvent": true
-                                          }
-                                        }
-                                      ],
-                                      "minimum_should_match": 1
-                                    }
-                                  }
-                                ]
-                              }
-                            }
-                          ]
-                        }
-                      }
-                    ]
-                  }
-                }
-              ]
+              "should": [{ "match_phrase": { "entityName": "farmatodo" } }],
+              "minimum_should_match": 1
             }
           }
-        ]
-      }
-    },
-    "highlight": {
-      "fields": {
-        "*": {}
+        ],
+        "should": [],
+        "must_not": []
       }
     },
     "timeout": "30000ms"

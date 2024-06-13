@@ -43,15 +43,9 @@ class MSQLServer:
             raise ValueError("entity_ids debe ser un DataFrame de pandas")
         self._entity_ids = entity_ids
 
-    def set_date_range(self, dates: tuple[date, date]):
-        start, end = dates
-        # Asegurarse de que el tiempo final sea 23:59:59 para incluir todo el día final
-        end = datetime.combine(end, time(23, 59, 59))
-
-        self._start_date = start.strftime('%Y-%m-%dT%H:%M:%SZ')
-        self._end_date = end.strftime('%Y-%m-%dT%H:%M:%SZ')
-
-        return (self._start_date, self._end_date)
+    def set_date_range(self, start_date: datetime, end_date: datetime) -> None:
+        self._start_date = start_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+        self._end_date = end_date.strftime('%Y-%m-%dT%H:%M:%SZ')
 
     def _get_entities_id(self) -> str:
         # Extraer los EntityID del DataFrame
@@ -324,17 +318,3 @@ class MSQLServer:
         ]
 
         return pd.DataFrame([tuple(row) for row in data], columns=columns)
-
-
-def _():
-    db = MSQLServer()
-    
-    db.set_date_range()
-    db.set_entity_ids()
-
-    print(db.get_entities())
-    print(db.get_alarm_count())
-    print(db.get_alarm_summary_by_entity_and_status())
-    print(db.get_alarm_details_by_entity())
-    print(db.get_full_alarm_details())
-    print(db.get_alarm_durations())
