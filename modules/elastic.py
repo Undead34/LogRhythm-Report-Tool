@@ -120,7 +120,7 @@ class Package:
         
         if len(data) == 0:
             return pd.DataFrame()
-
+        
         # Si la respuesta contiene datos de hits (documentos encontrados)
         if isinstance(data[0], dict) and "_source" in data[0]:
             # Extraer los campos '_source' de cada hit y crear un DataFrame
@@ -132,11 +132,30 @@ class Package:
             df = pd.DataFrame(data)
             df.rename(columns={"key": "msgSourceTypeName", "doc_count": "count"}, inplace=True)
         
+        elif "fields" in data[0] and isinstance(data[0]["fields"], dict):
+            fields = self._extract_fields(data)
+            # Create DataFrame from standardized fields
+            df = pd.DataFrame(fields)
+            
+            # Flatten lists to single values where possible
+            df = df.apply(lambda col: col.map(lambda x: x[0] if isinstance(x, list) and len(x) == 1 else x))
         else:
             raise ValueError("Unrecognized data format in the response.")
         
         return df
     
+    def _extract_fields(self, response):
+        # Extract the 'fields' dictionary from each hit and flatten it
+        all_fields = [hit['fields'] for hit in response]
+        
+        # Ensure all field dictionaries have the same keys, fill missing keys with None
+        all_keys = set(key for fields in all_fields for key in fields)
+        standardized_fields = []
+        for fields in all_fields:
+            standardized_fields.append({key: fields.get(key, [None]) for key in all_keys})
+
+        return standardized_fields
+
     def _extract_hits(self, response):
         """
         Extrae los hits (documentos encontrados) de la respuesta de Elasticsearch.
