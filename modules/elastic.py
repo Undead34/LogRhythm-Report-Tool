@@ -2,8 +2,13 @@ import os
 import glob
 import json
 import pandas as pd
-from datetime import date, datetime
+from datetime import datetime
 from elasticsearch import Elasticsearch
+
+class Package:
+    def __init__(self, elastic_instance, data):
+        self.elastic_instance = elastic_instance
+        self.data = data
 
 class Elastic:
     def __init__(self, host: str = "http://localhost:9200") -> None:
@@ -12,6 +17,7 @@ class Elastic:
         """
         self._es = Elasticsearch([host])
         self._date_range = None
+        self._entity_ids = None
 
     def set_date_range(self, start_date: datetime, end_date: datetime) -> None:
         """
@@ -41,6 +47,36 @@ class Elastic:
                 "format": "epoch_millis"
             }
         return {}
+    
+    def set_entity_ids(self, entity_ids: pd.DataFrame):
+        if not isinstance(entity_ids, pd.DataFrame):
+            raise ValueError("entity_ids debe ser un DataFrame de pandas")
+        self._entity_ids = entity_ids
+
+    def _replace_placeholders_type_1(self, data: dict, date_range: dict) -> dict:
+        """
+        Reemplaza placeholders para el tipo 1 de JSON.
+        """
+        query_str = json.dumps(data['query'])
+        
+        # Reemplazar los placeholders de fechas
+        query_str = query_str.replace('{{gte}}', str(date_range['gte']))
+        query_str = query_str.replace('{{lte}}', str(date_range['lte']))
+
+        # Crear la lista de objetos match para entityId
+        entity_id_matches = [{'match': {'entityId': str(id)}} for id in self._entity_ids['EntityID']]
+        
+        # Reemplazar el placeholder de entity_ids
+        entity_id_placeholder = r'[{"match": {"entityId": "{{entity_ids}}"}}]'
+        query_str = query_str.replace(entity_id_placeholder, json.dumps(entity_id_matches))
+
+        try:
+            # Actualizar el query original
+            return json.loads(query_str)
+        except json.JSONDecodeError as e:
+            print("Error al decodificar JSON:", e)
+            print("Query string con error:", query_str)
+            raise
 
     def load_queries(self, folder: str) -> list['Package']:
         """
@@ -67,13 +103,11 @@ class Elastic:
                 
                 # Intentar reemplazar los placeholders con los valores de epoch millis
                 try:
-                    if 'query' in data and 'query' in data['query']:
-                        query_str = json.dumps(data['query'])
-                        query_str = query_str.replace('{{gte}}', str(date_range['gte']))
-                        query_str = query_str.replace('{{lte}}', str(date_range['lte']))
-                        data['query'] = json.loads(query_str)
+                    if 'query' in data and 'query' in data['query'] and 'type' in data:
+                        if data['type'] == "1":
+                            data['query'] = self._replace_placeholders_type_1(data, date_range)
                 except KeyError as e:
-                    print(f"Error al reemplazar los valores de fecha en el archivo {file}: {e}")
+                    print(f"Error al reemplazar los valores de fecha o entityId en el archivo {file}: {e}")
                 
                 queries.append(Package(self, data))
             except (json.JSONDecodeError, IOError) as e:

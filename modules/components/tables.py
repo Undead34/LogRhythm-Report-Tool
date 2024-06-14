@@ -20,7 +20,31 @@ class Tables():
         self.components = components
         self.theme = components.theme
         self.db = components.db
+        self.pkg = components.pkg
         self.report = components.report
+
+    def table_of_log_source_type(self):
+        """
+        Busca un paquete con el _id específico dentro de la lista de paquetes y realiza una acción.
+        """
+        target_id = "40d28fac-063b-4540-8b5a-bf663f232427"
+        
+        # Usar una expresión generadora para encontrar el paquete
+        package = next((p for p in self.pkg if p._id == target_id), None)
+        
+        if package:
+            data = package.run()
+            
+            # Verificar si el DataFrame está vacío
+            if not data.empty:
+                table_data = [data.columns.to_list()] + data.values.tolist()
+                table_data[0] = ["Log Source Type", "Count"]
+                return self._table_maker(table_data)
+            else:
+                return [Paragraph("No hay datos disponibles para mostrar la tabla.", self.theme.get_style(ParagraphStyles.NR_TEXTO_NGRAFICO))]
+        else:
+            return [Paragraph("No hay datos disponibles para mostrar la tabla.", self.theme.get_style(ParagraphStyles.NR_TEXTO_NGRAFICO))]
+
 
     def table_of_entities(self):
         """No sé, pero se puede llamar a self, aunque no se le pasa a la funcion que lo llama en utils, cosas de Python XD"""

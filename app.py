@@ -57,6 +57,7 @@ def main():
 
     # Establecer las entidades seleccionadas en la base de datos
     database.set_entity_ids(entities)
+    elastic.set_entity_ids(entities)
     
     # Cargar las consultas desde un archivo
     # La función load_queries() carga consultas desde la ruta especificada

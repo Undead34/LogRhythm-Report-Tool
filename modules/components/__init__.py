@@ -29,22 +29,26 @@ class Components:
         self._available_tables = pd.DataFrame([
             {
                 "ID": "table_of_entities",
-                "Name": (
-                    "Tabla de Entidades en LogRhythm, contiene las columnas "
-                    "[«Entity ID», «Entity Name»]."
-                ),
+                "Name": "Tabla de Entidades en LogRhythm, contiene las columnas [«Entity ID», «Entity Name»].",
+                "Description": "",
                 "Callback": self.tables.table_of_entities
             },
             {
                 "ID": "alarm_status_table",
-                "Name": (
-                    "Tabla de estados de alarma reportados en LogRhythm.\n\n"
-                    "        Muestra cuantas alarmas están marcadas como:\n"
-                    "            'Auto Closed', 'Reported', 'Resolved', 'False Positive' o 'Monitor'\n\n"
-                    "        Se excluyen los estados de alarma 'Nueva' y 'OpenAlarm', contiene las columnas:\n"
-                    "            [«Entity Name», «Alarm Name», «Auto Closed»?, «Reported»?, «Resolved»?, «False Positive»?, «Monitor»?].\n"
+                "Name": "Tabla de estados de alarma reportados en LogRhythm.",
+                "Description": (
+                    "Muestra cuantas alarmas están marcadas como:\n"
+                    "   'Auto Closed', 'Reported', 'Resolved', 'False Positive' o 'Monitor'\n\n"
+                    "Se excluyen los estados de alarma 'Nueva' y 'OpenAlarm', contiene las columnas:\n"
+                    "   [«Entity Name», «Alarm Name», «Auto Closed»?, «Reported»?, «Resolved»?, «False Positive»?, «Monitor»?].\n"
                 ),
                 "Callback": self.tables.alarm_status_table
+            },
+            {
+                "ID": "table_of_log_source_type",
+                "Name": "table_of_log_source_type",
+                "Description": "",
+                "Callback": self.tables.table_of_log_source_type
             }
         ])
 
@@ -52,40 +56,35 @@ class Components:
         self._available_charts = pd.DataFrame([
             {
                 "ID": "trends_in_alarm_activation_graph",
-                "Name": (
-                    "Gráfico de Tendencias en la Activación de Alarmas\n\n"
-                    "        Este gráfico muestra la evolución temporal y la frecuencia de activación de diferentes alarmas, permitiendo identificar tendencias y picos en los datos.\n"),
+                "Name": "Gráfico de Tendencias en la Activación de Alarmas",
+                "Description": "Este gráfico muestra la evolución temporal y la frecuencia de activación de diferentes alarmas, permitiendo identificar tendencias y picos en los datos.",
                 "Callback": self.charts.trends_in_alarm_activation_graph
             },
             {
                 "ID": "stacked_bar_chart_by_alarm_status",
-                "Name": (
-                    "Gráfico de Distribución de Alarmas por Estado\n\n"
-                    "        Este gráfico de barras apiladas muestra la distribución de diferentes tipos de alarmas según su estado. Las alarmas con estado 'New' y 'Open Alarm' han sido excluidas para una mejor claridad.\n"),
+                "Name": "Gráfico de Distribución de Alarmas por Estado",
+                "Description": "Este gráfico de barras apiladas muestra la distribución de diferentes tipos de alarmas según su estado. Las alarmas con estado 'New' y 'Open Alarm' han sido excluidas para una mejor claridad.",
                 "Callback": self.charts.stacked_bar_chart_by_alarm_status
             },
             {
                 "ID": "stacked_bar_chart_by_alarm_type",
-                "Name": (
-                    "Gráfico de Barras Apiladas por Tipo de Alarma y Fecha\n\n"
-                    "        Este gráfico de barras apiladas muestra la cantidad de activaciones de diferentes alarmas a lo largo del tiempo. Se han seleccionado las diez alarmas con el mayor número total de activaciones durante todo el período analizado.\n"),
+                "Name": "Gráfico de Barras Apiladas por Tipo de Alarma y Fecha",
+                "Description": "Este gráfico de barras apiladas muestra la cantidad de activaciones de diferentes alarmas a lo largo del tiempo. Se han seleccionado las diez alarmas con el mayor número total de activaciones durante todo el período analizado.",
                 "Callback": self.charts.stacked_bar_chart_by_alarm_type
             },
             {
                 "ID": "heatmap_alarms_by_day_and_hour",
-                "Name": (
-                    "Mapa de Calor de Activaciones de Alarmas\n\n"
-                    "        Este mapa de calor muestra la frecuencia de activaciones de alarmas en diferentes días y horas, permitiendo identificar patrones temporales de activaciones.\n"),
+                "Name": "Mapa de Calor de Activaciones de Alarmas",
+                "Description": "Este mapa de calor muestra la frecuencia de activaciones de alarmas en diferentes días y horas, permitiendo identificar patrones temporales de activaciones.",
                 "Callback": self.charts.heatmap_alarms_by_day_and_hour
             },
             {
                 "ID": "scatter_plot_time_to_detection",
-                "Name": (
-                    "Gráfico de Dispersión de Duración de Alarmas\n\n"
-                    "        Este gráfico de dispersión muestra la duración de cada activación de alarma, ayudando a identificar alarmas que tienen una duración inusualmente larga.\n"),
+                "Name": "Gráfico de Dispersión de Duración de Alarmas",
+                "Description": "Este gráfico de dispersión muestra la duración de cada activación de alarma, ayudando a identificar alarmas que tienen una duración inusualmente larga.",
                 "Callback": self.charts.scatter_plot_time_to_detection
             },
-                        {
+            {
                 "ID": "box_plot_time_to_detection",
                 "Name": "box_plot_alarm_durations",
                 "Callback": self.charts.box_plot_time_to_detection
