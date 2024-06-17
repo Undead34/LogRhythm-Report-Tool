@@ -5,10 +5,6 @@ import pandas as pd
 from datetime import datetime
 from elasticsearch import Elasticsearch
 
-class Package:
-    def __init__(self, elastic_instance, data):
-        self.elastic_instance = elastic_instance
-        self.data = data
 
 class Elastic:
     def __init__(self, host: str = "http://localhost:9200") -> None:
@@ -18,13 +14,46 @@ class Elastic:
         self._es = Elasticsearch([host])
         self._date_range = None
         self._entity_ids = None
-
+    
     def set_date_range(self, start_date: datetime, end_date: datetime) -> None:
         """
         Establece el rango de fechas para las consultas.
         Convierte las fechas a formato datetime y asegura que el tiempo final sea 23:59:59.
         """
         self._date_range = (start_date, end_date)
+
+    def set_entity_ids(self, entity_ids: pd.DataFrame):
+        if not isinstance(entity_ids, pd.DataFrame):
+            raise ValueError("entity_ids debe ser un DataFrame de pandas")
+        self._entity_ids = entity_ids
+
+
+    def load_queries(self, folder: str) -> list['Package']:
+        """
+        Carga todas las consultas desde archivos JSON en la carpeta especificada.
+        Retorna una lista de instancias de Package.
+        """
+        folder_path = os.path.realpath(folder)
+        self._validate_folder_path(folder_path)
+
+        json_files = glob.glob(os.path.join(folder_path, "**/*.json"), recursive=True)
+
+        queries = []
+        date_range = self._get_epoch_millis_range()
+
+        for file in json_files:
+            data = self._load_json_file(file)
+            if not self._is_valid_data(data):
+                print(f"Formato de datos no reconocido en el archivo {file}.")
+                continue
+            
+            try:
+                data['query'] = self._process_query_by_type(data, date_range)
+                queries.append(Package(self, data))
+            except KeyError as e:
+                print(f"Error al procesar el archivo {file}: {e}")
+        
+        return queries
 
     def _convert_to_epoch_millis(self, date_obj: datetime) -> int:
         """
@@ -35,7 +64,7 @@ class Elastic:
             return epoch_millis
         return None
 
-    def get_epoch_millis_range(self) -> dict:
+    def _get_epoch_millis_range(self) -> dict:
         """
         Retorna el rango de fechas en formato epoch milliseconds, adecuado para consultas a Elasticsearch.
         """
@@ -47,13 +76,46 @@ class Elastic:
                 "format": "epoch_millis"
             }
         return {}
-    
-    def set_entity_ids(self, entity_ids: pd.DataFrame):
-        if not isinstance(entity_ids, pd.DataFrame):
-            raise ValueError("entity_ids debe ser un DataFrame de pandas")
-        self._entity_ids = entity_ids
 
-    def _replace_placeholders_type_1(self, data: dict, date_range: dict) -> dict:
+    def _validate_folder_path(self, folder_path: str):
+        """
+        Valida si la ruta proporcionada es una carpeta existente.
+        """
+        if not os.path.exists(folder_path):
+            raise FileNotFoundError(f"La ruta {folder_path} no existe.")
+        if not os.path.isdir(folder_path):
+            raise NotADirectoryError(f"{folder_path} no es un directorio.")
+
+    def _load_json_file(self, file: str) -> dict:
+        """
+        Carga y retorna el contenido de un archivo JSON.
+        """
+        try:
+            with open(file, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"Error al procesar el archivo {file}: {e}")
+            return {}
+
+    def _is_valid_data(self, data: dict) -> bool:
+        """
+        Verifica si los datos cargados son válidos.
+        """
+        return 'query' in data and 'query' in data['query'] and 'type' in data
+
+    def _process_query_by_type(self, data: dict, date_range: tuple) -> dict:
+        """
+        Procesa la consulta según su tipo.
+        """
+        if data['type'] == "1":
+            return self._replace_placeholders_type_1(data, date_range)
+        elif data['type'] == "2":
+            return self._replace_placeholders_type_2(data, date_range)
+        # Agrega más tipos aquí según sea necesario
+        else:
+            raise ValueError(f"Tipo de datos no reconocido: {data['type']}")
+
+    def _replace_placeholders_type_1(self, data: dict, date_range: tuple) -> dict:
         """
         Reemplaza placeholders para el tipo 1 de JSON.
         """
@@ -78,42 +140,12 @@ class Elastic:
             print("Query string con error:", query_str)
             raise
 
-    def load_queries(self, folder: str) -> list['Package']:
+    def _replace_placeholders_type_2(self, data: dict, date_range: tuple) -> dict:
         """
-        Carga todas las consultas desde archivos JSON en la carpeta especificada.
-        Retorna una lista de instancias de Package.
+        Reemplaza los marcadores de posición para consultas de tipo 2.
         """
-        folder_path = os.path.realpath(folder)
-
-        if not os.path.exists(folder_path):
-            raise FileNotFoundError(f"La ruta {folder_path} no existe.")
-
-        if not os.path.isdir(folder_path):
-            raise NotADirectoryError(f"{folder_path} no es un directorio.")
-
-        json_files = glob.glob(os.path.join(folder_path, "**/*.json"), recursive=True)
-
-        queries = []
-        date_range = self.get_epoch_millis_range()
-
-        for file in json_files:
-            try:
-                with open(file, "r") as f:
-                    data = json.load(f)
-                
-                # Intentar reemplazar los placeholders con los valores de epoch millis
-                try:
-                    if 'query' in data and 'query' in data['query'] and 'type' in data:
-                        if data['type'] == "1":
-                            data['query'] = self._replace_placeholders_type_1(data, date_range)
-                except KeyError as e:
-                    print(f"Error al reemplazar los valores de fecha o entityId en el archivo {file}: {e}")
-                
-                queries.append(Package(self, data))
-            except (json.JSONDecodeError, IOError) as e:
-                print(f"Error al procesar el archivo {file}: {e}")
-        
-        return queries
+        # Implementación específica para el tipo 2
+        pass
 
 class Package:
     def __init__(self, elastic: 'Elastic', data: dict) -> None:

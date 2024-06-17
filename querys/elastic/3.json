@@ -1,0 +1,101 @@
+{
+  "id": "1d0ece15-8f1b-4c45-ae38-a9c1f06761ba",
+  "name": "",
+  "mode": "single",
+  "index": ["logs-*"],
+  "description": "",
+  "aggregation_result": false,
+  "query": {
+    "aggs": {
+      "4": {
+        "terms": {
+          "field": "login",
+          "size": 20,
+          "order": {
+            "_count": "desc"
+          }
+        },
+        "aggs": {
+          "3": {
+            "avg": {
+              "field": "priority"
+            }
+          },
+          "5": {
+            "cardinality": {
+              "field": "userOriginIdentityName"
+            }
+          },
+          "6": {
+            "cardinality": {
+              "field": "userOriginIdentityTitle"
+            }
+          },
+          "7": {
+            "cardinality": {
+              "field": "logSourceName"
+            }
+          },
+          "8": {
+            "cardinality": {
+              "field": "mpeRuleName"
+            }
+          },
+          "9": {
+            "max": {
+              "field": "priority"
+            }
+          }
+        }
+      }
+    },
+    "size": 0,
+    "_source": {
+      "excludes": []
+    },
+    "stored_fields": ["*"],
+    "script_fields": {},
+    "docvalue_fields": [
+      {
+        "field": "insertedDate",
+        "format": "date_time"
+      },
+      {
+        "field": "logDate",
+        "format": "date_time"
+      },
+      {
+        "field": "normalDate",
+        "format": "date_time"
+      }
+    ],
+    "query": {
+      "bool": {
+        "must": [
+          {
+            "query_string": {
+              "query": "entityId: (16 || 4)",
+              "analyze_wildcard": true,
+              "default_field": "*"
+            }
+          },
+          {
+            "match_all": {}
+          },
+          {
+            "range": {
+              "normalDate": {
+                "gte": 1717214400000,
+                "lte": 1719806399999,
+                "format": "epoch_millis"
+              }
+            }
+          }
+        ],
+        "filter": [],
+        "should": [],
+        "must_not": []
+      }
+    }
+  }
+}
