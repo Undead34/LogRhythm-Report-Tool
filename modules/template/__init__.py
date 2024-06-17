@@ -1,19 +1,14 @@
 # ReportLab Libraries
-from reportlab.platypus import PageBreak, Image, Spacer, Table, TableStyle, Paragraph
-from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER, TA_JUSTIFY
-from reportlab.graphics.shapes import Line, Drawing
 from reportlab.platypus import SimpleDocTemplate
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.lib.pagesizes import LETTER, inch
 from reportlab.pdfbase import pdfmetrics
 
 # Libraries
 import shutil
 import os
 
-
 from .theme import Theme, ParagraphStyles
-from .canvas import Canvas
+from .canvas import Canvas # No delete !important this is for re-export, the top one too
 from utils import constants
 
 try:

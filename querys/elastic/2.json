@@ -1,10 +1,11 @@
 {
   "id": "40d28fac-063b-4540-8b5a-bf663f232427",
-  "name": "Consulta de Eventos de Seguridad desde el Inicio del Mes hasta Hoy",
+  "name": "Reporte de Actividad de Ataques Externos",
+  "description": "Esta consulta busca identificar eventos de ataques provenientes del exterior. Utiliza un rango de fechas especificado por el usuario y filtra los resultados para incluir solo aquellos registros que sean eventos (isEvent = true), tengan una clasificación de mensaje de 'attack', y una dirección de 'external'. La consulta agrupa los datos en intervalos de 3 horas según el campo 'normalDate' y ordena los resultados de manera descendente.",
   "mode": "single",
   "index": ["logs-*"],
-  "description": "Esta consulta busca eventos de seguridad en los logs que cumplen con las siguientes condiciones:\n\nEl campo normalDate está dentro del rango desde el inicio del mes actual hasta la fecha y hora actuales.\nLos documentos están ordenados por normalDate en orden descendente.\nLa consulta incluye una agregación que agrupa los resultados en intervalos de 3 horas.\nFiltra documentos donde rootEntityName es \"ensa\", msgClassName es \"attack\", directionName es \"external\", isEvent es true, y msgSourceTypeName contiene \"syslog - fortinet fortigate v6.0\".",
-  "aggregation_result": false,
+  "aggregation_result": true,
+  "type": "1",
   "query": {
     "size": 500,
     "sort": [
@@ -62,13 +63,7 @@
               "filter": [
                 {
                   "bool": {
-                    "should": [
-                      {
-                        "match": {
-                          "rootEntityName": "ensa"
-                        }
-                      }
-                    ],
+                    "should": [{ "match": { "entityId": "{{entity_ids}}" } }],
                     "minimum_should_match": 1
                   }
                 },

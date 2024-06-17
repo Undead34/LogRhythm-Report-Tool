@@ -1,9 +1,9 @@
 {
   "id": "40d28fac-063b-4540-8b5a-bf663f232427",
-  "name": "Consulta de ejemplo con agregación",
+  "name": "Distribución de Tipos de Fuente de Mensaje",
+  "description": "Esta consulta agrega los documentos en el índice `logs-*` por el campo `msgSourceTypeName`, mostrando los tipos de dispositivos que envían los registros. Se enfoca en documentos donde `isEvent` es verdadero y los agrupa por `entityId` dentro del rango de fechas especificado. Los resultados se ordenan en orden descendente por la cantidad de documentos por tipo de fuente, limitados a los 200 tipos más comunes.",
   "mode": "single",
   "index": ["logs-*"],
-  "description": "Consulta que devuelve términos más frecuentes por msgSourceTypeName",
   "aggregation_result": true,
   "type": "1",
   "query": {

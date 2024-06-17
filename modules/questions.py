@@ -96,6 +96,8 @@ def get_signature(default_signature: dict) -> dict:
 
     return answers
 
+def use_template():
+    return questionary.confirm(f"¿Desea seleccionar una plantilla de reporte?").ask()
 
 def get_output_details() -> tuple:
     """

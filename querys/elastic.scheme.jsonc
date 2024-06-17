@@ -1,60 +1,25 @@
 {
-  "id": "query1", // Identificador único de la consulta (puede ser un UUID)
-  "name": "Consulta de ejemplo", // Nombre descriptivo de la consulta
-  "mode": "single", // Modo de ejecución de la consulta: single para _search, multi para _msearch
-  "index": ["logs-*"], // Lista de índices en los que se ejecutará la consulta
-  "description": "Esta es una consulta de ejemplo para Elasticsearch", // Descripción opcional de la consulta
-  "aggregation_result": false, // Indica si se esperan resultados de agregación dentro de buckets
-  "query": { // Objeto que contiene la consulta específica de Elasticsearch
-    "query": { // Consulta dentro del objeto query de Elasticsearch
-      "bool": {
-        "must": [
-          {
-            "range": {
-              "timestamp_field": {
-                "gte": "{{gte}}", // Fecha de inicio en epoch millis (será reemplazada)
-                "lte": "{{lte}}", // Fecha de fin en epoch millis (será reemplazada)
-                "format": "epoch_millis" // Formato de fecha en epoch millis
-              }
-            }
-          }
-        ]
+  "$schema": [
+    {
+      "id": "<UUID único>",
+      "name": "<Nombre de la consulta>",
+      "mode": "<Modo de la consulta (por ejemplo, 'single', 'multi')>",
+      "index": [
+        "<Nombre del índice o patrones de índices (por ejemplo, 'logs-*')>"
+      ],
+      "description": "<Descripción de la consulta>",
+      "aggregation_result": true,
+      "type": "1",
+      "query": {
+        // En los campos gte y lte, se puede usar estas plantillas para remplazar con el periodo del reporte.
+        "timestamp_field": {
+          "gte": "{{gte}}", // Fecha de inicio en epoch millis (será reemplazada)
+          "lte": "{{lte}}", // Fecha de fin en epoch millis (será reemplazada)
+          "format": "epoch_millis" // Formato de fecha en epoch millis
+        },
+        // Los should con match entityId, se puede aplicar este template string para remplazarlos por los ID de las entidades selecionadas.
+        "should": [{ "match": { "entityId": "{{entity_ids}}" } }]
       }
-    },
-    "_source": ["field1", "field2"], // Lista de campos que se deben incluir en los resultados
-    "size": 1000 // Tamaño máximo de resultados a devolver
-  }
+    }
+  ]
 }
-
-// Uso de {{gte}} y {{lte}}:
-// Dentro del objeto query, el campo timestamp_field debe ajustarse según el campo de fecha y hora de tus documentos en Elasticsearch. 
-// Las claves {{gte}} y {{lte}} se utilizan como marcadores para indicar dónde se deben insertar los valores de fecha y hora en formato epoch millis antes de ejecutar la consulta.
-
-// Para copiar y pegar
-// {
-//   "id": "query1", 
-//   "name": "Consulta de ejemplo", 
-//   "mode": "single", 
-//   "index": ["logs-*"], 
-//   "description": "Esta es una consulta de ejemplo para Elasticsearch", 
-//   "aggregation_result": false, 
-//   "query": { 
-//     "query": { 
-//       "bool": {
-//         "must": [
-//           {
-//             "range": {
-//               "timestamp_field": {
-//                 "gte": "{{gte}}", 
-//                 "lte": "{{lte}}", 
-//                 "format": "epoch_millis" 
-//               }
-//             }
-//           }
-//         ]
-//       }
-//     },
-//     "_source": ["field1", "field2"], 
-//     "size": 1000 
-//   }
-// }

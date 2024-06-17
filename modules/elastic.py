@@ -7,11 +7,16 @@ from elasticsearch import Elasticsearch
 
 
 class Elastic:
-    def __init__(self, host: str = "http://localhost:9200") -> None:
+    def __init__(self, host: str = "http://localhost:9200", timeout: int = 30, max_retries: int = 10, retry_on_timeout: bool = True) -> None:
         """
         Inicializa la instancia de ElasticSearch con el host proporcionado.
         """
-        self._es = Elasticsearch([host])
+        self._es = Elasticsearch(
+            [host],
+            timeout=timeout,
+            max_retries=max_retries,
+            retry_on_timeout=retry_on_timeout
+        )
         self._date_range = None
         self._entity_ids = None
     
@@ -91,7 +96,7 @@ class Elastic:
         Carga y retorna el contenido de un archivo JSON.
         """
         try:
-            with open(file, "r") as f:
+            with open(file, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError) as e:
             print(f"Error al procesar el archivo {file}: {e}")
@@ -144,8 +149,23 @@ class Elastic:
         """
         Reemplaza los marcadores de posición para consultas de tipo 2.
         """
-        # Implementación específica para el tipo 2
-        pass
+        query_str = json.dumps(data['query'])
+        
+        # Reemplazar los placeholders de fechas
+        query_str = query_str.replace('{{gte}}', str(date_range['gte']))
+        query_str = query_str.replace('{{lte}}', str(date_range['lte']))
+
+        # Reemplazar los entityId en el query_string
+        entity_ids_str = " || ".join([str(id) for id in self._entity_ids['EntityID']])
+        query_str = query_str.replace('{{entity_ids}}', f'entityId: ({entity_ids_str})')
+
+        try:
+            # Actualizar el query original
+            return json.loads(query_str)
+        except json.JSONDecodeError as e:
+            print("Error al decodificar JSON:", e)
+            print("Query string con error:", query_str)
+            raise
 
 class Package:
     def __init__(self, elastic: 'Elastic', data: dict) -> None:
@@ -160,67 +180,73 @@ class Package:
         self._query = data.get("query")
         self._description = data.get("description")
         self._aggregation_result = data.get("aggregation_result", False)
+        self._type = data.get("type")
 
     def run(self) -> pd.DataFrame:
         """
         Ejecuta la consulta y retorna los resultados en forma de DataFrame de pandas.
         """
+        self._validate_query_parameters()
+
+        index_str = ",".join(self._index) if isinstance(self._index, list) else self._index
+        response = self._execute_query(index_str)
+
+        if response is None:
+            raise ValueError("No data found in the response.")
+
+        hits = self._extract_hits(response)
+        if self._aggregation_result:
+            aggregations = self._extract_aggregations(response)
+            if hits:
+                df_hits = self._create_dataframe_from_hits(hits)
+            else:
+                df_hits = pd.DataFrame()
+
+            if aggregations:
+                df_aggs = self._create_dataframe(aggregations)
+                if self._type == "2":
+                    df_aggs = self._rename_columns(df_aggs)  # Renombrar columnas solo para tipo 2
+            else:
+                df_aggs = pd.DataFrame()
+
+            if not df_hits.empty and not df_aggs.empty:
+                df = pd.concat([df_hits, df_aggs], axis=1)
+            elif not df_hits.empty:
+                df = df_hits
+            else:
+                df = df_aggs
+        else:
+            df = self._create_dataframe_from_hits(hits)
+
+        # Normalizar valores de arrays a valores simples si solo tienen un elemento
+        df = self._normalize_array_values(df)
+
+        return df
+
+    def _validate_query_parameters(self):
+        """
+        Valida que los parámetros esenciales de la consulta estén presentes.
+        """
         if not self._id or not self._index or not self._query:
             raise ValueError("ID, index, and query must be provided.")
 
-        index_str = ",".join(self._index) if isinstance(self._index, list) else self._index
-        data = None
-        
+    def _execute_query(self, index_str: str):
+        """
+        Ejecuta la consulta contra Elasticsearch y retorna la respuesta.
+        """
         if self._mode == "multi":
-            response = self._es.msearch(index=index_str, body=self._query, _source=True)
-            data = self._extract_hits(response)
+            return self._es.msearch(index=index_str, body=self._query, _source=True)
         else:
-            response = self._es.search(index=index_str, body=self._query, _source=True)
-            if self._aggregation_result:
-                data = self._extract_aggregations(response)
-            else:
-                data = self._extract_hits(response)
-        
-        if data is None:
-            raise ValueError("No data found in the response.")
-        
-        if len(data) == 0:
-            return pd.DataFrame()
-        
-        # Si la respuesta contiene datos de hits (documentos encontrados)
-        if isinstance(data[0], dict) and "_source" in data[0]:
-            # Extraer los campos '_source' de cada hit y crear un DataFrame
-            all_fields = [hit['_source'] for hit in data]
-            df = pd.DataFrame(all_fields)
-        
-        # Si la respuesta contiene datos de agregación (resultados de aggregaciones)
-        elif isinstance(data[0], dict) and "key" in data[0] and "doc_count" in data[0]:
-            df = pd.DataFrame(data)
-            df.rename(columns={"key": "msgSourceTypeName", "doc_count": "count"}, inplace=True)
-        
-        elif "fields" in data[0] and isinstance(data[0]["fields"], dict):
-            fields = self._extract_fields(data)
-            # Create DataFrame from standardized fields
-            df = pd.DataFrame(fields)
-            
-            # Flatten lists to single values where possible
-            df = df.apply(lambda col: col.map(lambda x: x[0] if isinstance(x, list) and len(x) == 1 else x))
-        else:
-            raise ValueError("Unrecognized data format in the response.")
-        
-        return df
-    
-    def _extract_fields(self, response):
-        # Extract the 'fields' dictionary from each hit and flatten it
-        all_fields = [hit['fields'] for hit in response]
-        
-        # Ensure all field dictionaries have the same keys, fill missing keys with None
-        all_keys = set(key for fields in all_fields for key in fields)
-        standardized_fields = []
-        for fields in all_fields:
-            standardized_fields.append({key: fields.get(key, [None]) for key in all_keys})
+            return self._es.search(index=index_str, body=self._query, _source=True)
 
-        return standardized_fields
+    def _process_response(self, response):
+        """
+        Procesa la respuesta de Elasticsearch y extrae los datos relevantes.
+        """
+        if self._aggregation_result:
+            return self._extract_aggregations(response)
+        else:
+            return self._extract_hits(response)
 
     def _extract_hits(self, response):
         """
@@ -239,8 +265,141 @@ class Package:
         Extrae los resultados de las agregaciones de la respuesta de Elasticsearch.
         """
         aggregations = response.get("aggregations", {})
-        if aggregations:
-            buckets = aggregations.get("3", {}).get("buckets", [])
-            return buckets
-        else:
+        if not aggregations:
             return []
+
+        aggs_key = list(self._query['aggs'].keys())[0]  # Obtiene la primera clave de agregación
+        aggs = self._query['aggs'][aggs_key]
+
+        if 'terms' in aggs:
+            return self._extract_terms_aggregations(aggregations, aggs_key)
+        elif 'date_histogram' in aggs:
+            return self._extract_date_histogram_aggregations(aggregations, aggs_key)
+        elif 'aggs' in aggs:
+            return self._extract_complex_aggregations(aggregations, aggs_key)
+        else:
+            raise ValueError("Unsupported aggregation type")
+
+    def _extract_terms_aggregations(self, aggregations, aggs_key):
+        """
+        Extrae los resultados de una agregación de términos.
+        """
+        buckets = aggregations.get(aggs_key, {}).get("buckets", [])
+        return buckets
+
+    def _extract_date_histogram_aggregations(self, aggregations, aggs_key):
+        """
+        Extrae los resultados de una agregación de histograma de fechas.
+        """
+        buckets = aggregations.get(aggs_key, {}).get("buckets", [])
+        return buckets
+
+    def _extract_complex_aggregations(self, aggregations, aggs_key):
+        """
+        Extrae los resultados de una agregación compleja con sub-agregaciones.
+        """
+        buckets = aggregations.get(aggs_key, {}).get("buckets", [])
+        return buckets
+
+    def _create_dataframe(self, data) -> pd.DataFrame:
+        """
+        Crea un DataFrame de pandas a partir de los datos extraídos.
+        """
+        if isinstance(data[0], dict) and "_source" in data[0]:
+            return self._create_dataframe_from_hits(data)
+        elif isinstance(data[0], dict) and "key" in data[0] and "doc_count" in data[0]:
+            aggs_key = list(self._query['aggs'].keys())[0]
+            aggs = self._query['aggs'][aggs_key]
+
+            if 'terms' in aggs:
+                return self._create_dataframe_from_terms_aggregations(data)
+            elif 'date_histogram' in aggs:
+                return self._create_dataframe_from_date_histogram_aggregations(data)
+            elif 'aggs' in aggs:
+                return self._create_dataframe_from_complex_aggregations(data)
+            else:
+                raise ValueError("Unsupported aggregation type")
+        elif "fields" in data[0] and isinstance(data[0]["fields"], dict):
+            return self._create_dataframe_from_fields(data)
+        else:
+            raise ValueError("Unrecognized data format in the response.")
+
+    def _create_dataframe_from_hits(self, data) -> pd.DataFrame:
+        """
+        Crea un DataFrame de pandas a partir de los hits.
+        """
+        all_fields = [hit['fields'] for hit in data]
+        return pd.DataFrame(all_fields)
+
+    def _create_dataframe_from_terms_aggregations(self, data) -> pd.DataFrame:
+        """
+        Crea un DataFrame de pandas a partir de los resultados de las agregaciones de términos.
+        """
+        aggs_key = list(self._query['aggs'].keys())[0]
+        field_name = self._query['aggs'][aggs_key]['terms']['field']
+        
+        # Extraer solo el nombre del campo sin el prefijo del índice (si existe)
+        field_name = field_name.split('.')[-1]
+        
+        df = pd.DataFrame(data)
+        df.rename(columns={"key": field_name, "doc_count": "count"}, inplace=True)
+        return df
+
+    def _create_dataframe_from_date_histogram_aggregations(self, data) -> pd.DataFrame:
+        """
+        Crea un DataFrame de pandas a partir de los resultados de las agregaciones de histograma de fechas.
+        """
+        df = pd.DataFrame(data)
+        df.rename(columns={"key_as_string": "date", "doc_count": "count"}, inplace=True)
+        return df
+
+    def _create_dataframe_from_complex_aggregations(self, data) -> pd.DataFrame:
+        """
+        Crea un DataFrame de pandas a partir de los resultados de las agregaciones complejas.
+        """
+        df = pd.DataFrame(data)
+        return df
+
+    def _rename_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Renombra las columnas del DataFrame basadas en los nombres de los campos de las sub-agregaciones en la consulta.
+        """
+        aggs_key = list(self._query['aggs'].keys())[0]
+        sub_aggs = self._query['aggs'][aggs_key]['aggs']
+
+        # Crear un diccionario para el mapeo de nombres
+        column_mapping = {}
+        for sub_agg_key, sub_agg in sub_aggs.items():
+            if 'field' in sub_agg:
+                field_name = sub_agg['field'].split('.')[-1]
+                column_mapping[sub_agg_key] = field_name
+
+        # Renombrar las columnas
+        df.rename(columns=column_mapping, inplace=True)
+        return df
+
+    def _create_dataframe_from_fields(self, data) -> pd.DataFrame:
+        """
+        Crea un DataFrame de pandas a partir de los campos extraídos.
+        """
+        fields = self._extract_fields(data)
+        df = pd.DataFrame(fields)
+        df = df.apply(lambda col: col.map(lambda x: x[0] if isinstance(x, list) and len(x) == 1 else x))
+        return df
+
+    def _extract_fields(self, response):
+        """
+        Extrae los campos de la respuesta y los estandariza.
+        """
+        all_fields = [hit['fields'] for hit in response]
+        all_keys = set(key for fields in all_fields for key in fields)
+        standardized_fields = [{key: fields.get(key, [None]) for key in all_keys} for fields in all_fields]
+        return standardized_fields
+
+    def _normalize_array_values(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Normaliza los valores que vienen como arrays a valores simples si solo tienen un elemento.
+        """
+        for col in df.columns:
+            df[col] = df[col].apply(lambda x: x[0] if isinstance(x, list) and len(x) == 1 else x)
+        return df

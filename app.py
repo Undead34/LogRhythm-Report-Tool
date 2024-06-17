@@ -23,7 +23,7 @@ from modules.questions import (
     select_date_range,
     ListReorder,
 )
-from modules.questions import get_output_details, get_signature, get_client_details
+from modules.questions import get_output_details, get_signature, get_client_details, use_template
 from utils import get_file_name, execute_callbacks
 
 
@@ -63,6 +63,18 @@ def main():
     # La función load_queries() carga consultas desde la ruta especificada
     queries = elastic.load_queries("./querys/elastic")
 
+    for package in queries:
+        if package._type != "2":
+            continue
+
+        df = package.run()
+        import json
+        print(json.dumps(package._query, indent=2))
+        # print(f"Resultados para la consulta {package._name}:")
+        # print(df)
+
+    return
+
     default_signature = {
         "title": "",
         "author": "Netready Solutions",
@@ -89,21 +101,26 @@ def main():
 
     report.elements += components.cover_page(signature, name, logo)
 
-    # Tables
-    tables = components.get_tables()
-    selected_tables = select_tables(tables)
+    elements = None
 
-    # Charts
-    charts = components.get_charts()
-    selected_charts = select_charts(charts)
+    if use_template():
+        print("")
+    else:
+        # Tables
+        tables = components.get_tables()
+        selected_tables = select_tables(tables)
 
-    # Combinar DataFrames y reordenar
-    unordered_elements = pd.concat([selected_tables, selected_charts], ignore_index=True)
+        # Charts
+        charts = components.get_charts()
+        selected_charts = select_charts(charts)
 
-    ordered_elements = ListReorder(unordered_elements).reorder()
+        # Combinar DataFrames y reordenar
+        unordered_elements = pd.concat([selected_tables, selected_charts], ignore_index=True)
+
+        elements = ListReorder(unordered_elements).reorder()
 
     # Ejecutar callbacks y construir el reporte
-    elements = execute_callbacks(ordered_elements)
+    elements = execute_callbacks(elements) if elements else []
 
     for element in elements:
         report.elements += element

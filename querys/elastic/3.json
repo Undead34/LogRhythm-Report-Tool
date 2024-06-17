@@ -1,10 +1,11 @@
 {
   "id": "1d0ece15-8f1b-4c45-ae38-a9c1f06761ba",
-  "name": "",
+  "name": "Análisis de Actividad de Inicio de Sesión y Prioridad",
+  "description": "Esta consulta analiza la actividad de inicio de sesión dentro del rango de fechas especificado para las entidades con ID 16 o 4. Se agrupan los resultados por el campo de `login` y se calculan las siguientes métricas:\n- Promedio de la prioridad (`priority`) de los eventos.\n- Cardinalidad (número único) de `userOriginIdentityName`.\n- Cardinalidad (número único) de `userOriginIdentityTitle`.\n- Cardinalidad (número único) de `logSourceName`.\n- Cardinalidad (número único) de `mpeRuleName`.\n- Máximo valor de la prioridad (`priority`) de los eventos.",
   "mode": "single",
   "index": ["logs-*"],
-  "description": "",
-  "aggregation_result": false,
+  "aggregation_result": true,
+  "type": "2",
   "query": {
     "aggs": {
       "4": {
@@ -74,7 +75,7 @@
         "must": [
           {
             "query_string": {
-              "query": "entityId: (16 || 4)",
+              "query": "{{entity_ids}}",
               "analyze_wildcard": true,
               "default_field": "*"
             }
@@ -85,8 +86,8 @@
           {
             "range": {
               "normalDate": {
-                "gte": 1717214400000,
-                "lte": 1719806399999,
+                "gte": "{{gte}}",
+                "lte": "{{lte}}",
                 "format": "epoch_millis"
               }
             }
