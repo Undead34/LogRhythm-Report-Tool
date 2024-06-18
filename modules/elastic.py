@@ -1,4 +1,5 @@
 import os
+import ast
 import glob
 import json
 import pandas as pd
@@ -31,7 +32,6 @@ class Elastic:
         if not isinstance(entity_ids, pd.DataFrame):
             raise ValueError("entity_ids debe ser un DataFrame de pandas")
         self._entity_ids = entity_ids
-
 
     def load_queries(self, folder: str) -> list['Package']:
         """
@@ -195,12 +195,14 @@ class Package:
             raise ValueError("No data found in the response.")
 
         hits = self._extract_hits(response)
+
+        if hits:
+            df_hits = self._create_dataframe_from_hits(hits)
+        else:
+            df_hits = pd.DataFrame()
+
         if self._aggregation_result:
             aggregations = self._extract_aggregations(response)
-            if hits:
-                df_hits = self._create_dataframe_from_hits(hits)
-            else:
-                df_hits = pd.DataFrame()
 
             if aggregations:
                 df_aggs = self._create_dataframe(aggregations)
@@ -209,14 +211,12 @@ class Package:
             else:
                 df_aggs = pd.DataFrame()
 
-            if not df_hits.empty and not df_aggs.empty:
-                df = pd.concat([df_hits, df_aggs], axis=1)
-            elif not df_hits.empty:
-                df = df_hits
-            else:
-                df = df_aggs
+        if not df_hits.empty and not df_aggs.empty:
+            df = pd.concat([df_hits, df_aggs], axis=1)
+        elif not df_hits.empty:
+            df = df_hits
         else:
-            df = self._create_dataframe_from_hits(hits)
+            df = df_aggs
 
         # Normalizar valores de arrays a valores simples si solo tienen un elemento
         df = self._normalize_array_values(df)
@@ -238,15 +238,6 @@ class Package:
             return self._es.msearch(index=index_str, body=self._query, _source=True)
         else:
             return self._es.search(index=index_str, body=self._query, _source=True)
-
-    def _process_response(self, response):
-        """
-        Procesa la respuesta de Elasticsearch y extrae los datos relevantes.
-        """
-        if self._aggregation_result:
-            return self._extract_aggregations(response)
-        else:
-            return self._extract_hits(response)
 
     def _extract_hits(self, response):
         """
@@ -370,12 +361,15 @@ class Package:
         # Crear un diccionario para el mapeo de nombres
         column_mapping = {}
         for sub_agg_key, sub_agg in sub_aggs.items():
-            if 'field' in sub_agg:
-                field_name = sub_agg['field'].split('.')[-1]
-                column_mapping[sub_agg_key] = field_name
+            # Aquí es donde necesitas agregar una capa adicional de indización
+            for _, agg_content in sub_agg.items():
+                if 'field' in agg_content:
+                    field_name = agg_content['field'].split('.')[-1]
+                    column_mapping[sub_agg_key] = field_name
 
         # Renombrar las columnas
         df.rename(columns=column_mapping, inplace=True)
+
         return df
 
     def _create_dataframe_from_fields(self, data) -> pd.DataFrame:
@@ -402,4 +396,36 @@ class Package:
         """
         for col in df.columns:
             df[col] = df[col].apply(lambda x: x[0] if isinstance(x, list) and len(x) == 1 else x)
+
+        # Función para renombrar columnas duplicadas
+        def rename_duplicate_columns(columns):
+            seen = {}
+            for i, col in enumerate(columns):
+                if col in seen:
+                    seen[col] += 1
+                    columns[i] = f"{col}_{seen[col]}"
+                else:
+                    seen[col] = 0
+            return columns
+
+        # Renombrar columnas duplicadas
+        df.columns = rename_duplicate_columns(list(df.columns))
+
+        # Deserializar valores de cadenas de texto a diccionarios
+        def deserialize(x):
+            if isinstance(x, str):
+                try:
+                    return ast.literal_eval(x)
+                except (ValueError, SyntaxError):
+                    return x
+            else:
+                return x
+
+        for column in df.columns:
+            df[column] = df[column].apply(deserialize)
+
+        # Aplicar lambda para extraer el valor de los diccionarios si existen
+        for column in df.columns:
+            df[column] = df[column].apply(lambda x: x['value'] if isinstance(x, dict) and 'value' in x else x)
+
         return df

@@ -64,14 +64,12 @@ def main():
     queries = elastic.load_queries("./querys/elastic")
 
     for package in queries:
-        if package._type != "2":
+        if package._id != "1d0ece15-8f1b-4c45-ae38-a9c1f06761ba":
             continue
 
         df = package.run()
-        import json
-        print(json.dumps(package._query, indent=2))
-        # print(f"Resultados para la consulta {package._name}:")
-        # print(df)
+        print(f"Resultados para la consulta {package._name}:")
+        print(df)
 
     return
 
