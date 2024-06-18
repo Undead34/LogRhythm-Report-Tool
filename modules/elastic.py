@@ -219,9 +219,19 @@ class Package:
     def _rename_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         aggs_key = list(self._query['aggs'].keys())[0]
         sub_aggs = self._query['aggs'][aggs_key]['aggs']
-        column_mapping = {sub_agg_key: sub_agg['field'].split('.')[-1] for sub_agg_key, sub_agg in sub_aggs.items() if 'field' in sub_agg}
 
+        # Crear un diccionario para el mapeo de nombres
+        column_mapping = {}
+        for sub_agg_key, sub_agg in sub_aggs.items():
+            # Aquí es donde necesitas agregar una capa adicional de indización
+            for _, agg_content in sub_agg.items():
+                if 'field' in agg_content:
+                    field_name = agg_content['field'].split('.')[-1]
+                    column_mapping[sub_agg_key] = field_name
+
+        # Renombrar las columnas
         df.rename(columns=column_mapping, inplace=True)
+
         return df
 
     def _create_dataframe_from_fields(self, data) -> pd.DataFrame:
@@ -237,10 +247,17 @@ class Package:
         return standardized_fields
 
     def _normalize_array_values(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.applymap(lambda x: x[0] if isinstance(x, list) and len(x) == 1 else x)
-        df.columns = self._rename_duplicate_columns(df.columns)
-        df = df.applymap(self._deserialize)
-        df = df.applymap(lambda x: x['value'] if isinstance(x, dict) and 'value' in x else x)
+        # Normaliza los valores que vienen como arrays a valores simples si solo tienen un elemento
+        df = df.apply(lambda x: x.map(lambda y: y[0] if isinstance(y, list) and len(y) == 1 else y))
+
+        # Renombrar columnas duplicadas
+        df.columns = self._rename_duplicate_columns(list(df.columns))
+
+        df = df.apply(lambda x: x.map(self._deserialize))
+
+        # Aplicar lambda para extraer el valor de los diccionarios si existen
+        df = df.apply(lambda x: x.map(lambda y: y['value'] if isinstance(y, dict) and 'value' in y else y))
+
         return df
 
     def _rename_duplicate_columns(self, columns):
