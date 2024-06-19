@@ -132,3 +132,7 @@ class Theme():
             return self.styleSheet.get(style_name)
         else:
             return self.styleSheet.get(style_name.value)
+
+    def replace_bold_with_font(self, text):
+        import re
+        return re.sub(r'\*\*(.*?)\*\*', r'<font face="Arial-Narrow-Bold">\1</font>', text)

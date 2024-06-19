@@ -91,9 +91,6 @@ class Components:
             }
         ])
 
-
-
-
     def get_tables(self) -> pd.DataFrame:
         return self._available_tables.copy()
 

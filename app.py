@@ -63,16 +63,6 @@ def main():
     # La función load_queries() carga consultas desde la ruta especificada
     queries = elastic.load_queries("./querys/elastic")
 
-    for package in queries:
-        if package._id != "1d0ece15-8f1b-4c45-ae38-a9c1f06761ba":
-            continue
-
-        df = package.run()
-        print(f"Resultados para la consulta {package._name}:")
-        print(df)
-
-    return
-
     default_signature = {
         "title": "",
         "author": "Netready Solutions",
@@ -99,10 +89,48 @@ def main():
 
     report.elements += components.cover_page(signature, name, logo)
 
-    elements = None
+    elements = []
 
     if use_template():
-        print("")
+        # Informe General de Seguridad SIEM
+        from reportlab.platypus import PageBreak, Image, Spacer, Paragraph, TableStyle
+        from reportlab.lib.units import cm
+        from reportlab.lib import colors
+
+        from modules.template.theme import ParagraphStyles
+        from utils import ElementList
+
+        e = ElementList()
+
+        get_style: callable = components.theme.get_style
+        N: callable = components.theme.replace_bold_with_font
+        styles = ParagraphStyles
+        charts = components.charts
+
+        e += Paragraph("Introducción".upper(), get_style(styles.NR_TITULO_1))
+        
+        e += Paragraph("1. Objetivo del Informe", get_style(styles.NR_TITULO_2))
+
+        e += Paragraph(N("""
+        **Propósito**: El propósito de este informe es proporcionar una visión detallada y automatizada del estado del Sistema de Gestión de Información y Eventos de Seguridad (SIEM),
+                   destacando los aspectos clave relacionados con la seguridad, el rendimiento y la conformidad.
+        """), get_style(styles.NR_TEXTO_1))
+
+        e += Paragraph(N("""
+        **Alcance**: Este informe cubre la actividad del SIEM durante el periodo especificado,
+                          incluyendo la identificación de atacantes, vulnerabilidades, alarmas, violaciones de cumplimiento,
+                          fallas operativas, violaciones de auditoría, detalles de logs, estadísticas de componentes y resúmenes automáticos.
+        """), get_style(styles.NR_TEXTO_1))
+
+        e += PageBreak()
+
+        e += Paragraph("Top Atacantes".upper(), get_style(styles.NR_TITULO_1))
+
+        e += charts.bar_chart_top_attackers()
+        e += charts.pareto_chart_top_attackers()
+
+
+        elements = e
     else:
         # Tables
         tables = components.get_tables()
@@ -118,7 +146,7 @@ def main():
         elements = ListReorder(unordered_elements).reorder()
 
     # Ejecutar callbacks y construir el reporte
-    elements = execute_callbacks(elements) if elements else []
+    elements = execute_callbacks(elements) if not isinstance(elements, list) and elements else elements
 
     for element in elements:
         report.elements += element
@@ -133,3 +161,47 @@ if __name__ == "__main__":
     except Exception as e:
         print(e)
         sys.exit(1)
+
+
+
+        # # Obtener la tabla con el ID específico
+        # table = next((q.run() for q in queries if q._id == "cdc64feb-bcd3-4675-be78-44f8d6f2af9d"), pd.DataFrame())
+
+        # # Convertir columnas y valores en una lista
+        # table_data = [table.columns.to_list()] + table.values.tolist()
+        
+        # # Agregar encabezado de índice
+        # table_data[0] = ["Index", "Origin IP", "Count"]
+        
+        # # Insertar el índice en cada fila de datos
+        # for i, row in enumerate(table_data[1:], start=1):
+        #     row.insert(0, i)
+
+        # # Uso de la función _table_maker con las nuevas opciones
+        # e += components.tables._table_maker(
+        #     table_data,
+        #     mode="fit-full",
+        #     padding=10,
+        #     include_totals=True,
+        #     totals_columns=[2]  # Especifica la columna 'Count' para sumar
+        # )
+
+
+        # e += charts.pareto_chart_top_attackers(table)
+
+        # Alarms
+        # e += charts.trends_in_alarm_activation_graph()
+        # e += charts.stacked_bar_chart_by_alarm_type()
+        # e += charts.stacked_bar_chart_by_alarm_status()
+        # e += charts.heatmap_alarms_by_day_and_hour()
+        # e += charts.scatter_plot_time_to_detection()
+
+        # data = next((q.run() for q in queries if q._id == "1d0ece15-8f1b-4c45-ae38-a9c1f06761ba"), pd.DataFrame())
+
+
+        # elements += charts.box_plot_risk_distribution(data)
+        # elements += charts.pie_chart_reporting_devices(data)
+
+        # for q in queries:
+        #     if q._id != "cdc64feb-bcd3-4675-be78-44f8d6f2af9d":
+        #         print(q.run())
