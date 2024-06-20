@@ -124,11 +124,66 @@ def main():
 
         e += PageBreak()
 
-        e += Paragraph("Top Atacantes".upper(), get_style(styles.NR_TITULO_1))
 
-        e += charts.bar_chart_top_attackers()
-        e += charts.pareto_chart_top_attackers()
+        
+        # Top Attackers
+        e += Paragraph("Top Attackers".upper(), get_style(styles.NR_TITULO_1))
+        df = next((q.run() for q in queries if q._id == "6e867b27-ad83-4c4d-bc41-8af86dc5989a"), pd.DataFrame())
 
+        top_external_attackers = df[df['directionName'] == 'external']
+        top_external_attackers = top_external_attackers.sort_values(by='count', ascending=False)
+        top_external_attackers = top_external_attackers.head(10)  # Select the top 10 rows
+
+        # Calculate the total count of events before selecting the top 10
+        total_events_before_top_10 = df['count'].sum()
+
+        # Adding a narrative
+        e += Paragraph(N(f"""
+        Durante el período de análisis, se registraron un total de **{total_events_before_top_10} eventos**. 
+        De estos, los siguientes **10 IPs externos** fueron identificados como los atacantes más activos, 
+        acumulando una significativa cantidad de eventos.
+        """), get_style(styles.NR_TEXTO_1))
+
+        e += charts.pareto_chart_top_attackers(
+            top_external_attackers,
+            "Top: External Attackers",
+            [
+                "Este gráfico de Pareto muestra el número de ataques desde cada IP de origen, junto con una línea que indica el total acumulado.",
+                "El gráfico ayuda a identificar rápidamente los atacantes más significativos y su contribución al total de ataques."
+            ]
+        )
+
+        # Time Series Analysis of Attacks by Priority
+        e += PageBreak()
+        e += Paragraph("Time Series Analysis of Attacks by Priority".upper(), get_style(styles.NR_TITULO_1))
+
+        e += Paragraph(N("""
+        A continuación, se presenta un análisis de series temporales que muestra la tendencia de los ataques a lo largo del tiempo, 
+        categorizados por su prioridad. Este análisis es crucial para identificar picos y patrones en la ocurrencia de eventos críticos.
+        """), get_style(styles.NR_TEXTO_1))
+
+        e += charts.time_series_attacks_by_priority(df)
+
+        # Heatmap of Events by Severity and Location
+        e += PageBreak()
+        e += Paragraph("Heatmap of Events by Severity and Location".upper(), get_style(styles.NR_TITULO_1))
+
+        e += Paragraph(N("""
+        Este mapa de calor muestra la distribución de eventos por severidad y ubicación afectada. Es útil para visualizar 
+        rápidamente las áreas más impactadas y la severidad de los eventos en esas ubicaciones.
+        """), get_style(styles.NR_TEXTO_1))
+
+        e += charts.heatmap_chart_by_severity_and_location(df)
+
+        # Conclusion
+        e += PageBreak()
+        e += Paragraph("Conclusión".upper(), get_style(styles.NR_TITULO_1))
+
+        e += Paragraph(N("""
+        En conclusión, este informe proporciona una visión exhaustiva del estado del SIEM, destacando los principales atacantes, 
+        las tendencias en la activación de alarmas, y la distribución de eventos por severidad y ubicación. Las visualizaciones incluidas 
+        ayudan a identificar patrones y áreas de interés que requieren atención para mejorar la seguridad y el rendimiento del sistema.
+        """), get_style(styles.NR_TEXTO_1))
 
         elements = e
     else:
@@ -161,47 +216,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(e)
         sys.exit(1)
-
-
-
-        # # Obtener la tabla con el ID específico
-        # table = next((q.run() for q in queries if q._id == "cdc64feb-bcd3-4675-be78-44f8d6f2af9d"), pd.DataFrame())
-
-        # # Convertir columnas y valores en una lista
-        # table_data = [table.columns.to_list()] + table.values.tolist()
-        
-        # # Agregar encabezado de índice
-        # table_data[0] = ["Index", "Origin IP", "Count"]
-        
-        # # Insertar el índice en cada fila de datos
-        # for i, row in enumerate(table_data[1:], start=1):
-        #     row.insert(0, i)
-
-        # # Uso de la función _table_maker con las nuevas opciones
-        # e += components.tables._table_maker(
-        #     table_data,
-        #     mode="fit-full",
-        #     padding=10,
-        #     include_totals=True,
-        #     totals_columns=[2]  # Especifica la columna 'Count' para sumar
-        # )
-
-
-        # e += charts.pareto_chart_top_attackers(table)
-
-        # Alarms
-        # e += charts.trends_in_alarm_activation_graph()
-        # e += charts.stacked_bar_chart_by_alarm_type()
-        # e += charts.stacked_bar_chart_by_alarm_status()
-        # e += charts.heatmap_alarms_by_day_and_hour()
-        # e += charts.scatter_plot_time_to_detection()
-
-        # data = next((q.run() for q in queries if q._id == "1d0ece15-8f1b-4c45-ae38-a9c1f06761ba"), pd.DataFrame())
-
-
-        # elements += charts.box_plot_risk_distribution(data)
-        # elements += charts.pie_chart_reporting_devices(data)
-
-        # for q in queries:
-        #     if q._id != "cdc64feb-bcd3-4675-be78-44f8d6f2af9d":
-        #         print(q.run())

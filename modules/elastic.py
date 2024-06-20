@@ -81,6 +81,8 @@ class Elastic:
             return self._replace_placeholders_type_1(data, date_range)
         elif data['type'] == "2":
             return self._replace_placeholders_type_2(data, date_range)
+        elif data['type'] == "3":
+            return self._replace_placeholders_type_3(data, date_range)
         else:
             raise ValueError(f"Tipo de datos no reconocido: {data['type']}")
 
@@ -99,6 +101,15 @@ class Elastic:
         query_str = query_str.replace('{{gte}}', str(date_range['gte'])).replace('{{lte}}', str(date_range['lte']))
 
         entity_ids_str = " || ".join([str(id) for id in self._entity_ids['EntityID']])
+        query_str = query_str.replace('{{entity_ids}}', f'entityId: ({entity_ids_str})')
+
+        return self._load_json_str(query_str)
+
+    def _replace_placeholders_type_3(self, data: dict, date_range: dict) -> dict:
+        query_str = json.dumps(data['query'])
+        query_str = query_str.replace('{{gte}}', str(date_range['gte'])).replace('{{lte}}', str(date_range['lte']))
+
+        entity_ids_str = " OR ".join([str(id) for id in self._entity_ids['EntityID']])
         query_str = query_str.replace('{{entity_ids}}', f'entityId: ({entity_ids_str})')
 
         return self._load_json_str(query_str)
@@ -124,25 +135,27 @@ class Package:
         self._type = data.get("type")
 
     def run(self) -> pd.DataFrame:
-        self._validate_query_parameters()
-        index_str = ",".join(self._index) if isinstance(self._index, list) else self._index
-        response = self._execute_query(index_str)
-        if response is None:
-            raise ValueError("No data found in the response.")
+        try:
+            self._validate_query_parameters()
+            index_str = ",".join(self._index) if isinstance(self._index, list) else self._index
+            response = self._execute_query(index_str)
+            if response is None:
+                raise ValueError("No data found in the response.")
 
-        hits = self._extract_hits(response)
-        df_hits = self._create_dataframe_from_hits(hits) if hits else pd.DataFrame()
+            if self._type == "1":
+                df = self._handle_type_1(response)
+            elif self._type == "2":
+                df = self._handle_type_2(response)
+            elif self._type == "3":
+                df = self._handle_type_3(response)
+            else:
+                raise ValueError(f"Tipo de datos no reconocido: {self._type}")
 
-        df_aggs = pd.DataFrame()
-        if self._aggregation_result:
-            aggregations = self._extract_aggregations(response)
-            df_aggs = self._create_dataframe(aggregations)
-            if self._type == "2":
-                df_aggs = self._rename_columns(df_aggs)
-
-        df = pd.concat([df_hits, df_aggs], axis=1) if not df_hits.empty and not df_aggs.empty else df_hits if not df_hits.empty else df_aggs
-        df = self._normalize_array_values(df)
-        return df
+            df = self._normalize_array_values(df)
+            return df
+        except Exception as e:
+            print(e)
+            return pd.DataFrame()
 
     def _validate_query_parameters(self):
         if not self._id or not self._index or not self._query:
@@ -150,6 +163,44 @@ class Package:
 
     def _execute_query(self, index_str: str):
         return self._es.msearch(index=index_str, body=self._query, _source=True) if self._mode == "multi" else self._es.search(index=index_str, body=self._query, _source=True)
+
+    def _handle_type_1(self, response):
+        hits = self._extract_hits(response)
+        if hits:
+            df_hits = self._create_dataframe_from_hits(hits)
+        else:
+            df_hits = pd.DataFrame()
+
+        aggregations = self._extract_aggregations(response)
+        if aggregations:
+            df_aggs = self._create_dataframe(aggregations)
+        else:
+            df_aggs = pd.DataFrame()
+
+        df = pd.concat([df_hits, df_aggs], axis=1) if not df_hits.empty and not df_aggs.empty else df_hits if not df_hits.empty else df_aggs
+        return df
+
+    def _handle_type_2(self, response):
+        aggregations = self._extract_aggregations(response)
+        if aggregations:
+            df_aggs = self._create_dataframe(aggregations)
+            df_aggs = self._rename_columns(df_aggs)
+        else:
+            df_aggs = pd.DataFrame()
+        return df_aggs
+
+    def _handle_type_3(self, response):
+        print(len(response["aggregations"]["top_origin_ips"]["buckets"]))  # Añade esta línea para imprimir la respuesta completa
+        aggregations = self._extract_aggregations(response)
+        if aggregations:
+            df_aggs = self._create_dataframe(aggregations)
+            if 'top_hits' in self._query['aggs'][list(self._query['aggs'].keys())[0]]['aggs']:
+                df_aggs = self._expand_top_hits(df_aggs, 'top_hits')
+            df_aggs = self._rename_columns(df_aggs)
+        else:
+            df_aggs = pd.DataFrame()
+
+        return df_aggs
 
     def _extract_hits(self, response):
         if "responses" in response:
@@ -198,7 +249,7 @@ class Package:
             raise ValueError("Unrecognized data format in the response.")
 
     def _create_dataframe_from_hits(self, data) -> pd.DataFrame:
-        all_fields = [hit['fields'] for hit in data]
+        all_fields = [hit['_source'] for hit in data]
         return pd.DataFrame(all_fields)
 
     def _create_dataframe_from_terms_aggregations(self, data) -> pd.DataFrame:
@@ -215,6 +266,17 @@ class Package:
 
     def _create_dataframe_from_complex_aggregations(self, data) -> pd.DataFrame:
         return pd.DataFrame(data)
+
+    def _expand_top_hits(self, df: pd.DataFrame, top_hits_field: str) -> pd.DataFrame:
+        def extract_top_hits_data(row):
+            hits = row[top_hits_field]['hits']['hits']
+            if hits:
+                hit_data = hits[0]['fields']
+                for key, value in hit_data.items():
+                    row[key] = value[0] if isinstance(value, list) and len(value) == 1 else value
+            return row
+
+        return df.apply(extract_top_hits_data, axis=1).drop(columns=[top_hits_field])
 
     def _rename_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         aggs_key = list(self._query['aggs'].keys())[0]
@@ -266,8 +328,7 @@ class Package:
             if col in seen:
                 seen[col] += 1
                 columns[i] = f"{col}_{seen[col]}"
-            else:
-                seen[col] = 0
+            else: seen[col] = 0
         return columns
 
     def _deserialize(self, x):

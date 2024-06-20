@@ -62,11 +62,11 @@ class Draw:
 
         return self._save_chart()
 
-    def heatmap_chart(self, pivot_df: pd.DataFrame) -> str:
+    def heatmap_chart(self, pivot_df: pd.DataFrame, xlabel: str = "Hora del Día", ylabel: str = "Día de la Semana") -> str:
         plt.figure(figsize=(18, 10))
         sns.heatmap(pivot_df, cmap='coolwarm', annot=True, fmt='d')
-        plt.xlabel("Hora del Día")
-        plt.ylabel("Día de la Semana")
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
 
         return self._save_chart()
     
@@ -105,9 +105,8 @@ class Draw:
 
         return self._save_chart()
 
-
     def pareto_chart(self, df: pd.DataFrame, value_col: str, category_col: str) -> str:
-        df = df.sort_values(by=value_col, ascending=False)
+        df = df.sort_values(by=value_col, ascending=False).reset_index(drop=True)
         df['cum_percentage'] = df[value_col].cumsum() / df[value_col].sum() * 100
 
         fig, ax = plt.subplots(figsize=(12, 8))
@@ -120,9 +119,92 @@ class Draw:
         ax.set_xticks(range(len(df[category_col])))
         ax.set_xticklabels(df[category_col], rotation=45, ha='right')
 
+        # Set labels
+        ax.set_ylabel('Count')
+        ax2.set_ylabel('Cumulative Percentage')
+
+        # Add gridlines
+        ax.grid(True, axis='y', linestyle='--', alpha=0.7)
+        ax2.grid(True, axis='y', linestyle='--', alpha=0.7)
+
+        # Show plot
+        plt.tight_layout()
+
+        return self._save_chart()
+        
+    def bubble_chart_attack_impact(self, df: pd.DataFrame) -> str:
+        plt.figure(figsize=(18, 10))
+        bubble_size = df['severity'].apply(lambda x: 100 if x == 'critical' else 50)
+        
+        sns.scatterplot(
+            data=df,
+            x='impactedLocationName',
+            y='count',
+            size=bubble_size,
+            hue='severity',
+            palette='coolwarm',
+            sizes=(50, 500),
+            alpha=0.7,
+            edgecolor='k'
+        )
+        plt.title('Bubble Chart for Attack Impact')
+        plt.xlabel('Impacted Location')
+        plt.ylabel('Count of Attacks')
+        plt.xticks(rotation=45)
+        plt.legend(title='Severity')
+
+        return self._save_chart()
+
+    def box_plot_attack_frequency(self, df: pd.DataFrame) -> str:
+        plt.figure(figsize=(18, 10))
+        
+        sns.boxplot(
+            data=df,
+            x='msgSourceTypeName',
+            y='count'
+        )
+        plt.title('Box Plot for Attack Frequency by Source Type')
+        plt.xlabel('Message Source Type')
+        plt.ylabel('Count of Attacks')
+        plt.xticks(rotation=45)
+
+        return self._save_chart()
+        
+    def pie_chart_attack_direction(self, df: pd.DataFrame) -> str:
+        plt.figure(figsize=(18, 10))
+        
+        attack_counts = df['directionName'].value_counts()
+        attack_counts.plot.pie(
+            autopct='%1.1f%%',
+            startangle=140,
+            colors=sns.color_palette('husl', len(attack_counts)),
+            wedgeprops={'linewidth': 1, 'edgecolor': 'black'}
+        )
+        plt.title('Pie Chart for Attack Direction')
+        plt.ylabel('')
+
+        return self._save_chart()
+
+    def time_series_attacks_by_priority(self, df: pd.DataFrame) -> str:
+        df['normalDate'] = pd.to_datetime(df['normalDate'])
+        df['Date'] = df['normalDate'].dt.date
+
+        plt.figure(figsize=(18, 10))
+        for priority in df['priority'].unique():
+            subset = df[df['priority'] == priority]
+            trends_df = subset.groupby('Date')['count'].sum().reset_index()
+            plt.plot(trends_df['Date'], trends_df['count'], marker='o', label=f'Priority {priority}')
+        
+        plt.xlabel('Date')
+        plt.ylabel('Number of Events')
+        plt.title('Time Series Analysis of Attacks by Priority')
+        plt.legend()
+        plt.grid(True)
+
         return self._save_chart()
 
     def _generate_colors(self, n: int) -> List[str]:
+        colors = ['#50BBD4', '#4F81A4', '#F9A40C', '#F96611', '#941C2F', '#D7BCE8', '#D7263D', '#464655', '#495159', '#05F140', '#A790A5', '#875C74']
         return sns.color_palette('husl', n)
 
     def _save_chart(self) -> str:
@@ -151,8 +233,6 @@ class Charts:
             elements += Paragraph(self.replace_bold_with_font(desc), self.theme.get_style(ParagraphStyles.NR_TEXTO_1))
         
         return elements
-
-    # --- Bloque de Gráficos Existentes ---
 
     def trends_in_alarm_activation_graph(self) -> ElementList:
         df = self.db.get_alarm_details_by_entity()
@@ -319,22 +399,118 @@ class Charts:
 
         return self.generate_report_elements("Top Atacantes - Gráfico de Barras", description, figure_src)
 
-    def pareto_chart_top_attackers(self) -> ElementList:
-        df = next((q.run() for q in self.pkg if q._id == "cdc64feb-bcd3-4675-be78-44f8d6f2af9d"), pd.DataFrame())
-
+    def pareto_chart_top_attackers(self, df: pd.DataFrame, title: str, description: list[str]) -> ElementList:
         if df.empty:
             return [Paragraph("No hay datos disponibles para mostrar el gráfico de Pareto.", self.theme.get_style(ParagraphStyles.NR_TEXTO_NGRAFICO))]
 
         figure_src = self.draw.pareto_chart(df, value_col='count', category_col='originIp')
 
-        description = [
-            "Este gráfico de Pareto muestra el número de ataques desde cada IP de origen, junto con una línea que indica el total acumulado.",
-            "El gráfico ayuda a identificar rápidamente los atacantes más significativos y su contribución al total de ataques."
-        ]
-
-        return self.generate_report_elements("Top Atacantes - Gráfico de Pareto", description, figure_src)
+        return self.generate_report_elements(title, description, figure_src)
 
     # --- Bloque de Nuevos Gráficos ---
+
+    def heatmap_chart_by_severity_and_location(self, df: pd.DataFrame) -> ElementList:
+        if df.empty:
+            return [Paragraph("No hay datos disponibles para mostrar el mapa de calor.", self.theme.get_style(ParagraphStyles.NR_TEXTO_NGRAFICO))]
+
+        # Pivotar el DataFrame para el heatmap
+        pivot_df = df.pivot_table(
+            index='impactedLocationName',
+            columns='severity',
+            values='count',
+            aggfunc='sum',
+            fill_value=0
+        )
+
+        # Generar el gráfico de heatmap
+        figure_src = self.draw.heatmap_chart(pivot_df, "Severity", "Location")
+
+        description = [
+            "Este mapa de calor muestra la distribución de eventos por severidad y ubicación afectada.",
+            "El eje **x** representa los diferentes niveles de severidad de los eventos.",
+            "El eje **y** representa las ubicaciones afectadas.",
+            "Los colores en el mapa indican el número de eventos, con colores más oscuros representando mayor cantidad de eventos."
+        ]
+
+        return self.generate_report_elements("Mapa de Calor de Eventos por Severidad y Ubicación", description, figure_src)
+
+    def line_chart_trends_by_date(self, df: pd.DataFrame) -> ElementList:
+        if df.empty:
+            return [Paragraph("No hay datos disponibles para mostrar el gráfico de líneas.", self.theme.get_style(ParagraphStyles.NR_TEXTO_NGRAFICO))]
+
+        df['normalDate'] = pd.to_datetime(df['normalDate'])
+        df['Date'] = df['normalDate'].dt.date
+        trends_df = df.groupby('Date')['count'].sum().reset_index()
+
+        plt.figure(figsize=(18, 10))
+        plt.plot(trends_df['Date'], trends_df['count'], marker='o')
+        plt.xlabel("Fecha")
+        plt.ylabel("Número de Eventos")
+        plt.title("Tendencias de Eventos por Fecha")
+        plt.grid(True)
+
+        figure_src = self.draw._save_chart()
+
+        description = [
+            "Este gráfico de líneas muestra la tendencia de los eventos a lo largo del tiempo.",
+            "El eje **x** representa las fechas y el eje **y** muestra el número de eventos.",
+            "Es útil para identificar picos y patrones en la ocurrencia de eventos críticos."
+        ]
+
+        return self.generate_report_elements("Tendencias de Eventos por Fecha", description, figure_src)
+
+    def bubble_chart_attack_impact(self, df: pd.DataFrame) -> ElementList:
+        if df.empty:
+            return [Paragraph("No hay datos disponibles para mostrar el gráfico de burbujas.", self.theme.get_style(ParagraphStyles.NR_TEXTO_NGRAFICO))]
+
+        figure_src = self.draw.bubble_chart_attack_impact(df)
+        description = [
+            "Este gráfico de burbujas muestra la relación entre la severidad de los ataques, su cuenta, y las ubicaciones afectadas.",
+            "El tamaño de las burbujas representa la severidad de los ataques, con burbujas más grandes indicando mayor severidad.",
+            "Los colores de las burbujas indican la severidad de los ataques, ayudando a identificar las ubicaciones más impactadas."
+        ]
+
+        return self.generate_report_elements("Gráfico de Burbujas de Impacto de Ataques", description, figure_src)
+
+    def box_plot_attack_frequency(self, df: pd.DataFrame) -> ElementList:
+        if df.empty:
+            return [Paragraph("No hay datos disponibles para mostrar el gráfico de caja.", self.theme.get_style(ParagraphStyles.NR_TEXTO_NGRAFICO))]
+
+        figure_src = self.draw.box_plot_attack_frequency(df)
+        description = [
+            "Este diagrama de caja muestra la distribución de la frecuencia de ataques desde diferentes tipos de fuente.",
+            "Cada caja representa el rango intercuartílico (IQR) y los bigotes indican el rango de los datos.",
+            "Los puntos fuera de los bigotes se consideran valores atípicos."
+        ]
+
+        return self.generate_report_elements("Gráfico de Caja de Frecuencia de Ataques por Tipo de Fuente", description, figure_src)
+
+
+    def pie_chart_attack_direction(self, df: pd.DataFrame) -> ElementList:
+        if df.empty:
+            return [Paragraph("No hay datos disponibles para mostrar el gráfico de pastel.", self.theme.get_style(ParagraphStyles.NR_TEXTO_NGRAFICO))]
+
+        figure_src = self.draw.pie_chart_attack_direction(df)
+        description = [
+            "Este gráfico de pastel muestra la proporción de ataques según su dirección (interno vs. externo).",
+            "Las secciones del pastel representan las diferentes direcciones de los ataques, ayudando a visualizar la distribución."
+        ]
+
+        return self.generate_report_elements("Gráfico de Pastel para la Dirección de Ataques", description, figure_src)
+
+    def time_series_attacks_by_priority(self, df: pd.DataFrame) -> ElementList:
+        if df.empty:
+            return [Paragraph("No hay datos disponibles para mostrar el gráfico de series temporales.", self.theme.get_style(ParagraphStyles.NR_TEXTO_NGRAFICO))]
+
+        figure_src = self.draw.time_series_attacks_by_priority(df)
+        description = [
+            "Este gráfico de líneas muestra la tendencia de los ataques a lo largo del tiempo, categorizados por prioridad.",
+            "El eje **x** representa las fechas y el eje **y** muestra el número de eventos.",
+            "Es útil para identificar picos y patrones en la ocurrencia de eventos críticos."
+        ]
+
+        return self.generate_report_elements("Análisis de Series Temporales de Ataques por Prioridad", description, figure_src)
+
 
     def replace_bold_with_font(self, text: str) -> str:
         import re
