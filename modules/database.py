@@ -1,10 +1,8 @@
-from datetime import date, datetime, time
+from datetime import datetime
 import pandas as pd
 import pyodbc
 import sys
-
 from utils.constants import DB_HOST, DB_USER, DB_PASS
-
 
 class MSQLServer:
     def __init__(self) -> None:
@@ -15,18 +13,20 @@ class MSQLServer:
         self._start_date: str | None = None
         self._end_date: str | None = None
 
-        self._alarm_details_cache = None
-        self._alarm_durations_cached = None
+        self._cache = {}
 
-    def get_full_alarm_details_cached(self):
-        if self._alarm_details_cache is None:
-            self._alarm_details_cache = self.get_full_alarm_details()
-        return self._alarm_details_cache
-    
-    def get_alarm_durations_cached(self):
-        if self._alarm_durations_cached is None:
-            self._alarm_durations_cached = self.get_alarm_durations()
-        return self._alarm_durations_cached
+    def _execute_query(self, sql: str) -> pd.DataFrame:
+        cache_key = (sql, self._get_entities_id(), self._start_date, self._end_date)
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        
+        cursor = self._conn.execute(sql)
+        data = cursor.fetchall()
+        columns = [column[0] for column in cursor.description]
+        df = pd.DataFrame([tuple(row) for row in data], columns=columns)
+        self._cache[cache_key] = df
+        
+        return df
 
     def _validate_entity_ids(self):
         if self._entity_ids is None or self._entity_ids.empty:
@@ -42,37 +42,26 @@ class MSQLServer:
         if not isinstance(entity_ids, pd.DataFrame):
             raise ValueError("entity_ids debe ser un DataFrame de pandas")
         self._entity_ids = entity_ids
+        self._cache.clear()
 
     def set_date_range(self, start_date: datetime, end_date: datetime) -> None:
         self._start_date = start_date.strftime('%Y-%m-%dT%H:%M:%SZ')
         self._end_date = end_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+        self._cache.clear()
 
     def _get_entities_id(self) -> str:
-        # Extraer los EntityID del DataFrame
+        if self._entity_ids is None:
+            return ""
         entity_ids = self._entity_ids['EntityID'].tolist()
-        entity_ids_str = ', '.join(map(str, entity_ids))
-        return entity_ids_str
+        return ', '.join(map(str, entity_ids))
 
     def get_entities(self) -> pd.DataFrame:
         sql = """   
-        SELECT TOP (1000) [EntityID]
-            ,[ParentEntityID]
-            ,[Name] 
-            ,[FullName]
-            ,[ShortDesc]
-            ,[RecordStatus]
-            ,[DateUpdated]
+        SELECT TOP (1000) [EntityID], [ParentEntityID], [Name], 
+               [FullName], [ShortDesc], [RecordStatus], [DateUpdated]
         FROM [LogRhythmEMDB].[dbo].[Entity]
         """
-
-        cursor = self._conn.execute(sql)
-        data = cursor.fetchall()
-        columns = ['EntityID', 'ParentEntityID',
-                   'Name', 'FullName',
-                   'ShortDesc', 'RecordStatus',
-                   'DateUpdated']
-
-        return pd.DataFrame([tuple(row) for row in data], columns=columns)
+        return self._execute_query(sql)
 
     def get_alarm_count(self) -> int:
         self._validate_entity_ids()
@@ -81,176 +70,98 @@ class MSQLServer:
         entity_ids_str = self._get_entities_id()
 
         sql = f"""
-        SELECT
-            count(*) as Count
-        FROM
-            LogRhythm_Alarms.[dbo].[Alarm] a with (NOLOCK)
-            JOIN
-            LogRhythmEMDB.[dbo].[AlarmRule] ar
-            ON a.[AlarmRuleID] = ar.[AlarmRuleID]
-        WHERE
-            ar.[AlarmType] = 5 AND
-            a.[EntityID] IN ({entity_ids_str}) AND
-            DateInserted BETWEEN '{self._start_date}' AND '{self._end_date}'
+        SELECT count(*) as Count
+        FROM LogRhythm_Alarms.[dbo].[Alarm] a WITH (NOLOCK)
+        WHERE a.[EntityID] IN ({entity_ids_str}) 
+          AND DateInserted BETWEEN '{self._start_date}' AND '{self._end_date}'
         """
-
-        cursor = self._conn.execute(sql)
-        data = cursor.fetchall()
-        return data[0][0]
+        result = self._execute_query(sql)
+        return result.iloc[0]['Count']
 
     def get_alarm_summary_by_entity_and_status(self) -> pd.DataFrame:
-        """
-        Esta consulta obtiene el nombre de la entidad, el estado de la alarma y el conteo de alarmas agrupado por entidad y estado de alarma.
-        """
         self._validate_entity_ids()
         self._validate_dates()
 
         entity_ids_str = self._get_entities_id()
 
         sql = f"""
-        SELECT 
-            Entity.Name AS 'EntityName',
-            (CONVERT(nvarchar, CASE
-                WHEN AlarmStatus = 0 THEN 'New'
-                WHEN AlarmStatus = 1 THEN 'OpenAlarm'
-                WHEN AlarmStatus = 2 THEN 'Working'
-                WHEN AlarmStatus = 3 THEN 'Escalated'
-                WHEN AlarmStatus = 4 THEN 'AutoClosed'
-                WHEN AlarmStatus = 5 THEN 'FalsePositive'
-                WHEN AlarmStatus = 6 THEN 'Resolved'
-                WHEN AlarmStatus = 7 THEN 'UnResolved'
-                WHEN AlarmStatus = 8 THEN 'Reported'
-                WHEN AlarmStatus = 9 THEN 'Monitor' 
-            END)) AS AlarmStatus,
-            COUNT(AlarmName.Name) AS AlarmCount
-        FROM 
-            [LogRhythm_Alarms].[dbo].[Alarm] AS Alarm 
-            JOIN LogRhythmEMDB.dbo.AlarmRule AS AlarmName 
-                ON Alarm.AlarmRuleID = AlarmName.AlarmRuleID
-            JOIN LogRhythmEMDB.dbo.Entity AS Entity 
-                ON Entity.EntityID = Alarm.EntityID
-        WHERE 
-            Entity.EntityID IN ({entity_ids_str}) AND
-            DateInserted BETWEEN '{self._start_date}' AND '{self._end_date}'
-        GROUP BY 
-            Entity.Name, AlarmStatus
-        ORDER BY
-            [AlarmStatus] DESC
+        SELECT Entity.Name AS 'EntityName',
+               Alarm.AlarmStatus,
+               COUNT(*) AS AlarmCount
+        FROM [LogRhythm_Alarms].[dbo].[Alarm] AS Alarm 
+        JOIN LogRhythmEMDB.dbo.Entity AS Entity 
+          ON Entity.EntityID = Alarm.EntityID
+        WHERE Entity.EntityID IN ({entity_ids_str}) 
+          AND DateInserted BETWEEN '{self._start_date}' AND '{self._end_date}'
+        GROUP BY Entity.Name, Alarm.AlarmStatus
+        ORDER BY Alarm.AlarmStatus DESC
         """
-
-        cursor = self._conn.execute(sql)
-        data = cursor.fetchall()
-        columns = ['EntityName', 'AlarmStatus', 'AlarmCount']
-
-        return pd.DataFrame([tuple(row) for row in data], columns=columns)
+        df = self._execute_query(sql)
+        df['AlarmStatus'] = df['AlarmStatus'].map({
+            0: 'New', 1: 'OpenAlarm', 2: 'Working', 3: 'Escalated', 4: 'AutoClosed', 
+            5: 'FalsePositive', 6: 'Resolved', 7: 'UnResolved', 8: 'Reported', 9: 'Monitor'
+        })
+        return df
 
     def get_alarm_details_by_entity(self) -> pd.DataFrame:
-        """
-        Obtiene detalles de alarmas específicas (como la fecha de la alarma, el ID de la alarma, el nombre y el estado de la alarma) agrupados por entidad
-        """
         self._validate_entity_ids()
         self._validate_dates()
 
         entity_ids_str = self._get_entities_id()
 
         sql = f"""
-        SELECT 
-            Entity.Name AS 'EntityName',
-            Alarm.AlarmDate,
-            Alarm.AlarmID,
-            AlarmName.Name,
-            (CONVERT(nvarchar, CASE
-                WHEN AlarmStatus = 4 THEN 'Auto Closed'
-                WHEN AlarmStatus = 8 THEN 'Reported'
-                WHEN AlarmStatus = 6 THEN 'Resolved'
-                WHEN AlarmStatus = 5 THEN 'False Positive'
-                WHEN AlarmStatus = 0 THEN 'New'
-                WHEN AlarmStatus = 1 THEN 'Open Alarm'
-                WHEN AlarmStatus = 9 THEN 'Monitor' 
-            END)) AS AlarmStatus
-        FROM 
-            [LogRhythm_Alarms].[dbo].[Alarm] AS Alarm 
-            JOIN LogRhythmEMDB.dbo.AlarmRule AS AlarmName 
-                ON Alarm.AlarmRuleID = AlarmName.AlarmRuleID
-            JOIN LogRhythmEMDB.dbo.Entity AS Entity 
-                ON Entity.EntityID = Alarm.EntityID
-        WHERE 
-            Entity.EntityID IN ({entity_ids_str}) AND
-            DateInserted BETWEEN '{self._start_date}' AND '{self._end_date}'
-        ORDER BY
-            [AlarmStatus] DESC
+        SELECT Entity.Name AS 'EntityName',
+               Alarm.AlarmDate,
+               Alarm.AlarmID,
+               AlarmName.Name AS AlarmName,
+               Alarm.AlarmStatus
+        FROM [LogRhythm_Alarms].[dbo].[Alarm] AS Alarm 
+        JOIN LogRhythmEMDB.dbo.AlarmRule AS AlarmName 
+          ON Alarm.AlarmRuleID = AlarmName.AlarmRuleID
+        JOIN LogRhythmEMDB.dbo.Entity AS Entity 
+          ON Entity.EntityID = Alarm.EntityID
+        WHERE Entity.EntityID IN ({entity_ids_str}) 
+          AND DateInserted BETWEEN '{self._start_date}' AND '{self._end_date}'
+        ORDER BY Alarm.AlarmStatus DESC
         """
-
-        cursor = self._conn.execute(sql)
-        data = cursor.fetchall()
-
-        columns = ['Entity Name', 'Alarm Date',
-                   'Alarm ID', 'Alarm Name', 'Alarm Status']
-
-        return pd.DataFrame([tuple(row) for row in data], columns=columns)
+        df = self._execute_query(sql)
+        df['AlarmStatus'] = df['AlarmStatus'].map({
+            0: 'New', 1: 'Open Alarm', 2: 'Working', 3: 'Escalated', 4: 'Auto Closed', 
+            5: 'False Positive', 6: 'Resolved', 7: 'UnResolved', 8: 'Reported', 9: 'Monitor'
+        })
+        return df
 
     def get_full_alarm_details(self) -> pd.DataFrame:
-        """
-        Esta consulta, se divide en dos partes: primero obtiene los IDs de las alarmas relevantes y luego obtiene los datos completos usando esos IDs
-        """
         self._validate_entity_ids()
         self._validate_dates()
 
         entity_ids_str = self._get_entities_id()
 
-        # Consulta 1: Extraer datos de Alarm y AlarmRule
         sql = f"""
-        -- Parte 1: Obtener los IDs de Alarmas relevantes
-        WITH AlarmIDs AS (
-            SELECT alm.[AlarmID]
-            FROM [LogRhythm_Alarms].[dbo].[Alarm] alm WITH (NOLOCK)
-            WHERE alm.[EntityID] IN ({entity_ids_str})
-            AND alm.[DateInserted] BETWEEN '{self._start_date}' AND '{self._end_date}'
-        )
-        -- Parte 2: Obtener los datos completos usando los IDs de Alarmas
-        SELECT
-            alm.[EntityID],
-            alm.[AlarmDate],
-            alm.[DateInserted],
-            alm.[DateUpdated],
-            CASE 
-                WHEN alm.[AlarmStatus] = 0 THEN 'New'
-                WHEN alm.[AlarmStatus] = 1 THEN 'OpenAlarm'
-                WHEN alm.[AlarmStatus] = 2 THEN 'Working'
-                WHEN alm.[AlarmStatus] = 3 THEN 'Escalated'
-                WHEN alm.[AlarmStatus] = 4 THEN 'AutoClosed'
-                WHEN alm.[AlarmStatus] = 5 THEN 'FalsePositive'
-                WHEN alm.[AlarmStatus] = 6 THEN 'Resolved'
-                WHEN alm.[AlarmStatus] = 7 THEN 'UnResolved'
-                WHEN alm.[AlarmStatus] = 8 THEN 'Reported'
-                WHEN alm.[AlarmStatus] = 9 THEN 'Monitor'
-                ELSE 'Unknown'
-            END AS AlarmStatus,
-            emsg.[AlarmType],
-            emsg.[Name],
-            lrem.[Priority]
-        FROM AlarmIDs ids
-        JOIN [LogRhythm_Alarms].[dbo].[Alarm] alm WITH (NOLOCK)
-            ON ids.[AlarmID] = alm.[AlarmID]
+        SELECT alm.[EntityID],
+               alm.[AlarmDate],
+               alm.[DateInserted],
+               alm.[DateUpdated],
+               alm.[AlarmStatus],
+               emsg.[AlarmType],
+               emsg.[Name] AS AlarmName,
+               lrem.[Priority]
+        FROM [LogRhythm_Alarms].[dbo].[Alarm] alm WITH (NOLOCK)
         JOIN LogRhythmEMDB.dbo.AlarmRule emsg WITH (NOLOCK)
-            ON alm.[AlarmRuleID] = emsg.[AlarmRuleID]
+          ON alm.[AlarmRuleID] = emsg.[AlarmRuleID]
         JOIN [LogRhythm_Alarms].[dbo].[AlarmToMARCMsg] atm WITH (NOLOCK)
-            ON alm.[AlarmID] = atm.[AlarmID]
+          ON alm.[AlarmID] = atm.[AlarmID]
         JOIN [LogRhythm_Events].[dbo].[Msg] lrem WITH (NOLOCK)
-            ON lrem.[MsgID] = atm.[MARCMsgID];
+          ON lrem.[MsgID] = atm.[MARCMsgID]
+        WHERE alm.[EntityID] IN ({entity_ids_str})
+          AND alm.[DateInserted] BETWEEN '{self._start_date}' AND '{self._end_date}'
         """
-        cursor = self._conn.execute(sql)
-        data = cursor.fetchall()
-
-        # Especificar los nombres de las columnas
-        columns = [
-            'EntityID', 'AlarmDate',
-            'DateInserted', 'DateUpdated',
-            'AlarmStatus', 'AlarmType',
-            'AlarmName', 'AlarmPriority',
-        ]
-
-        return pd.DataFrame([tuple(row) for row in data], columns=columns)
+        df = self._execute_query(sql)
+        df['AlarmStatus'] = df['AlarmStatus'].map({
+            0: 'New', 1: 'OpenAlarm', 2: 'Working', 3: 'Escalated', 4: 'AutoClosed', 
+            5: 'FalsePositive', 6: 'Resolved', 7: 'UnResolved', 8: 'Reported', 9: 'Monitor'
+        })
+        return df
 
     def get_alarm_durations(self) -> pd.DataFrame:
         self._validate_entity_ids()
@@ -259,62 +170,59 @@ class MSQLServer:
         entity_ids_str = self._get_entities_id()
 
         sql = f"""
-        WITH AlarmIDs AS (
-            SELECT alm.[AlarmID]
-            FROM [LogRhythm_Alarms].[dbo].[Alarm] alm WITH (NOLOCK)
-            WHERE alm.[EntityID] IN ({entity_ids_str})
-            AND alm.[DateInserted] BETWEEN '{self._start_date}' AND '{self._end_date}'
-        )
         SELECT 
-            a.EntityID,
-            a.AlarmDate,
-            a.DateInserted,
-            am.GeneratedOn,
-            am.OpenedOn,
-            am.InvestigatedOn,
-            am.ClosedOn,
-            ar.[Name] AS AlarmName,
-            lrem.[Priority],
-            DATEDIFF(SECOND, am.GeneratedOn, am.InvestigatedOn) AS TTD,
-            DATEDIFF(SECOND, am.InvestigatedOn, am.ClosedOn) AS TTR,
-            CASE 
-                WHEN a.AlarmStatus = 0 THEN 'New'
-                WHEN a.AlarmStatus = 1 THEN 'OpenAlarm'
-                WHEN a.AlarmStatus = 2 THEN 'Working'
-                WHEN a.AlarmStatus = 3 THEN 'Escalated'
-                WHEN a.AlarmStatus = 4 THEN 'AutoClosed'
-                WHEN a.AlarmStatus = 5 THEN 'FalsePositive'
-                WHEN a.AlarmStatus = 6 THEN 'Resolved'
-                WHEN a.AlarmStatus = 7 THEN 'UnResolved'
-                WHEN a.AlarmStatus = 8 THEN 'Reported'
-                WHEN a.AlarmStatus = 9 THEN 'Monitor'
-                ELSE 'Unknown'
-            END AS AlarmStatus,
-            ar.[AlarmType]
-        FROM AlarmIDs ids
-        JOIN LogRhythm_Alarms.dbo.Alarm a WITH (NOLOCK)
-            ON ids.[AlarmID] = a.[AlarmID]
-        JOIN LogRhythm_Alarms.dbo.AlarmToMARCMsg atm WITH (NOLOCK) 
-            ON a.AlarmID = atm.AlarmID
-        JOIN [LogRhythm_Alarms].[dbo].[AlarmMetrics] am WITH (NOLOCK) 
-            ON a.AlarmID = am.AlarmID
-        JOIN [LogRhythmEMDB].[dbo].AlarmRule ar
-            ON a.AlarmRuleID = ar.AlarmRuleID 
-        JOIN [LogRhythm_Events].[dbo].[Msg] lrem WITH (NOLOCK)
-            ON lrem.[MsgID] = atm.[MARCMsgID]
-        WHERE 
-            a.[EntityID] IN ({entity_ids_str})
-            AND a.DateInserted BETWEEN '{self._start_date}' AND '{self._end_date}'
-            AND am.GeneratedOn IS NOT NULL
-            AND am.InvestigatedOn IS NOT NULL
+            EntityID,
+            AlarmDate,
+            DateInserted,
+            GeneratedOn,
+            InvestigatedOn,
+            ClosedOn,
+            AlarmRuleName AS AlarmName,
+            MsgClassName,
+            AlarmPriority,
+            AlarmStatus,
+            DATEDIFF(SECOND, GeneratedOn, InvestigatedOn) AS TTD,
+            DATEDIFF(SECOND, InvestigatedOn, ClosedOn) AS TTR
+        FROM LogRhythm_Alarms.dbo.vw_LatestAlarms
+        WHERE EntityID IN ({entity_ids_str})
+          AND DateInserted BETWEEN '{self._start_date}' AND '{self._end_date}'
+          AND GeneratedOn IS NOT NULL
+          AND InvestigatedOn IS NOT NULL
         """
-        cursor = self._conn.execute(sql)
-        data = cursor.fetchall()
+        df = self._execute_query(sql)
+        df['AlarmStatus'] = df['AlarmStatus'].map({
+            0: 'New', 1: 'OpenAlarm', 2: 'Working', 3: 'Escalated', 4: 'AutoClosed', 
+            5: 'FalsePositive', 6: 'Resolved', 7: 'UnResolved', 8: 'Reported', 9: 'Monitor'
+        })
+        
+        # Filtrar registros con TTD y TTR negativos
+        df = df[(df['TTD'] >= 0) & (df['TTR'] >= 0)]
+        
+        return df
+    
+    def get_TTD_AND_TTR_by_alarm_priority(self) -> pd.DataFrame:
+        df = self.get_alarm_durations()
+        summary = df.groupby('AlarmPriority').agg(
+            Tickets=('EntityID', 'count'),
+            Avg_TTD=('TTD', 'mean'),
+            Max_TTD=('TTD', 'max'),
+            Avg_TTR=('TTR', 'mean'),
+            Max_TTR=('TTR', 'max')
+        ).reset_index()
+        summary.columns = ['Priority', 'Alarms', 'Avg_TTD', 'Max_TTD', 'Avg_TTR', 'Max_TTR']
+        return summary
+    
+    def get_TTD_AND_TTR_by_msg_class_name(self) -> pd.DataFrame:
+        df = self.get_alarm_durations()
+        summary = df.groupby('MsgClassName').agg(
+            Tickets=('EntityID', 'count'),
+            Avg_TTD=('TTD', 'mean'),
+            Max_TTD=('TTD', 'max'),
+            Avg_TTR=('TTR', 'mean'),
+            Max_TTR=('TTR', 'max')
+        ).reset_index()
 
-        columns = [
-            'EntityID', 'AlarmDate', 'DateInserted', 'GeneratedOn', 'OpenedOn', 
-            'InvestigatedOn', 'ClosedOn', 'AlarmName', 'Priority', 'TTD', 'TTR', 
-            'AlarmStatus', 'AlarmType'
-        ]
-
-        return pd.DataFrame([tuple(row) for row in data], columns=columns)
+        summary.columns = ['Priority', 'Alarms', 'Avg_TTD', 'Max_TTD', 'Avg_TTR', 'Max_TTR']
+        return summary
+    
+        # summary.columns = ['Priority', 'Alarms', 'Avg TTD (hrs)', 'Max TTD (hrs)', 'Avg TTR (hrs)', 'Max TTR (hrs)']

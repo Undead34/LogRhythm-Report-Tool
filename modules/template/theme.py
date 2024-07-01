@@ -16,6 +16,7 @@ class ParagraphStyles(Enum):
     NR_TABLE_HEADER_1 = 'NR-Table Header 3'
     NR_TABLE_HEADER_CONTENT_1 = 'NR-Table Header Content 3'
     NR_TEXTO_ITALIC = 'NR-Italic'
+    NR_LISTA = 'NR-Lista'
 
 
 class Theme():
@@ -126,6 +127,13 @@ class Theme():
                                   parent=styles[ParagraphStyles.NR_TITULO_1.value],
                                   leftIndent=0,  # Sangría izquierda: 0 cm
                                   firstLineIndent=28.9))  # Sangría francesa: 1,02 cm (en puntos)
+
+        # Definimos el estilo 'NR-Lista' basado en 'NR-Texto 1'
+        styles.add(ParagraphStyle(name=ParagraphStyles.NR_LISTA.value,
+                                  parent=styles[ParagraphStyles.NR_TEXTO_1.value],
+                                  spaceAfter=6,  # Ajuste del espacio después
+                                  spaceBefore=6,  # Ajuste del espacio antes
+                                  leading=13.8))  # Ajuste del interlineado
 
     def get_style(self, style_name: ParagraphStyles | str) -> ParagraphStyles:
         if type(style_name) == str:

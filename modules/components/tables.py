@@ -5,6 +5,7 @@ from reportlab.lib.units import cm
 from reportlab.lib import colors
 
 import pandas as pd
+from datetime import timedelta
 
 from modules.template.theme import ParagraphStyles
 from utils import ElementList
@@ -80,6 +81,38 @@ class Tables():
         """, self.theme.get_style(ParagraphStyles.NR_TEXTO_1))
 
         return elements
+
+    def table_ttd_ttr_by_msg_class_name(self):
+        """
+        Crea una tabla que muestra el tiempo promedio y máximo de detección (TTD) y resolución (TTR)
+        de alarmas agrupadas por clase de mensaje.
+        """
+        data = self.db.get_TTD_AND_TTR_by_msg_class_name()
+
+        # Formatear tiempos en HH:MM:SS
+        for col in ['Avg_TTD', 'Max_TTD', 'Avg_TTR', 'Max_TTR']:
+            data[col] = data[col].apply(lambda x: str(timedelta(seconds=int(x))) if pd.notnull(x) else '00:00:00')
+        
+        # Verificar si el DataFrame está vacío
+        if not data.empty:
+            data.columns = ['Clase de Mensaje', 'Alarmas', 'TTD Promedio', 'TTD Máximo', 'TTR Promedio', 'TTR Máximo']
+            table_data = [data.columns.to_list()] + data.values.tolist()
+            elements = ElementList()
+
+            # Agregar explicación
+            elements += Paragraph(
+                "Esta tabla proporciona un resumen del tiempo promedio y máximo de detección (TTD) y resolución (TTR) "
+                "de alarmas agrupadas por clase de mensaje. TTD es el tiempo desde que se generó la alarma hasta que se investigó, "
+                "y TTR es el tiempo desde que se investigó hasta que se resolvió.",
+                self.theme.get_style(ParagraphStyles.NR_TEXTO_1)
+            )
+
+            # Crear la tabla
+            elements += self._table_maker(table_data, mode='auto', padding=8, sangria=0)
+
+            return elements
+        else:
+            return [Paragraph("No hay datos disponibles para mostrar la tabla.", self.theme.get_style(ParagraphStyles.NR_TEXTO_NGRAFICO))]
 
     def _table_maker(self, data: list[list], mode: str = 'auto', padding: int = 12, sangria: int = 0,
                     custom_style: dict = None, include_totals: bool = False, totals_columns: list = None,

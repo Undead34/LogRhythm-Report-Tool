@@ -571,6 +571,18 @@ class Charts:
         description = [""]
 
         return self.generate_report_elements("Number of events per day", description, chart_path)
+    
+    def events_histogram_by_month_by_msg_class_name(self):
+        df = next(q.run() for q in self.pkg if q._id == "34607e55-49ea-44d9-a152-b3d2bdbae24b")
+        df['date'] = pd.to_datetime(df['date'])
+
+
+        print(df.columns)
+
+        # chart_path = self.draw.simple_histogram(df, 'date', 'count')
+        # description = [""]
+
+        # return self.generate_report_elements("Number of events per day", description, chart_path)
 
 
     def replace_bold_with_font(self, text: str) -> str:

@@ -6,7 +6,6 @@ import pandas as pd
 from datetime import datetime
 from elasticsearch import Elasticsearch
 
-
 class Elastic:
     def __init__(self, host: str = "http://localhost:9200", timeout: int = 30, max_retries: int = 10, retry_on_timeout: bool = True) -> None:
         self._es = Elasticsearch(
@@ -203,7 +202,6 @@ class Package:
         return df_aggs
 
     def _handle_type_3(self, response):
-        print(len(response["aggregations"]["top_origin_ips"]["buckets"]))  # Añade esta línea para imprimir la respuesta completa
         aggregations = self._extract_aggregations(response)
         if aggregations:
             df_aggs = self._create_dataframe(aggregations)
@@ -216,13 +214,20 @@ class Package:
         return df_aggs
 
     def _handle_type_4(self, response):
+        hits = self._extract_hits(response)
+        if hits:
+            df_hits = self._create_dataframe_from_hits(hits)
+        else:
+            df_hits = pd.DataFrame()
+
         aggregations = self._extract_aggregations(response)
-        
         if aggregations:
             df_aggs = self._create_dataframe_from_date_histogram_aggregations(aggregations)
         else:
             df_aggs = pd.DataFrame()
-        return df_aggs
+
+        df = pd.concat([df_hits, df_aggs], axis=1) if not df_hits.empty and not df_aggs.empty else df_hits if not df_hits.empty else df_aggs
+        return df
 
     def _extract_hits(self, response):
         if "responses" in response:
@@ -271,7 +276,10 @@ class Package:
             raise ValueError("Unrecognized data format in the response.")
 
     def _create_dataframe_from_hits(self, data) -> pd.DataFrame:
-        all_fields = [hit['_source'] for hit in data]
+        all_fields = []
+        for hit in data:
+            combined_fields = {**hit.get('_source', {}), **hit.get('fields', {})}
+            all_fields.append(combined_fields)
         return pd.DataFrame(all_fields)
 
     def _create_dataframe_from_terms_aggregations(self, data) -> pd.DataFrame:
@@ -304,16 +312,13 @@ class Package:
         aggs_key = list(self._query['aggs'].keys())[0]
         sub_aggs = self._query['aggs'][aggs_key]['aggs']
 
-        # Crear un diccionario para el mapeo de nombres
         column_mapping = {}
         for sub_agg_key, sub_agg in sub_aggs.items():
-            # Aquí es donde necesitas agregar una capa adicional de indización
             for _, agg_content in sub_agg.items():
                 if 'field' in agg_content:
                     field_name = agg_content['field'].split('.')[-1]
                     column_mapping[sub_agg_key] = field_name
 
-        # Renombrar las columnas
         df.rename(columns=column_mapping, inplace=True)
 
         return df
@@ -330,35 +335,11 @@ class Package:
         standardized_fields = [{key: fields.get(key, [None]) for key in all_keys} for fields in all_fields]
         return standardized_fields
 
-    def _extract_aggregations(self, response):
-        aggregations = response.get("aggregations", {})
-        if not aggregations:
-            return []
-
-        aggs_key = list(self._query['aggs'].keys())[0]
-        return aggregations.get(aggs_key, {}).get("buckets", [])
-
-    def _create_dataframe_from_date_histogram_aggregations(self, data) -> pd.DataFrame:
-        if not data:
-            return pd.DataFrame()
-        # Convertir los buckets en un DataFrame
-        df = pd.DataFrame(data)
-        if not df.empty:
-            df.rename(columns={"key_as_string": "date", "key": "epoch_millis", "doc_count": "count"}, inplace=True)
-        return df
-
     def _normalize_array_values(self, df: pd.DataFrame) -> pd.DataFrame:
-        # Normaliza los valores que vienen como arrays a valores simples si solo tienen un elemento
-        df = df.apply(lambda x: x.map(lambda y: y[0] if isinstance(y, list) and len(y) == 1 else y))
-        
-        # Renombrar columnas duplicadas
+        df = df.apply(lambda col: col.map(lambda x: x[0] if isinstance(x, list) and len(x) == 1 else x))
         df.columns = self._rename_duplicate_columns(list(df.columns))
-        
-        df = df.apply(lambda x: x.map(self._deserialize))
-        
-        # Aplicar lambda para extraer el valor de los diccionarios si existen
-        df = df.apply(lambda x: x.map(lambda y: y['value'] if isinstance(y, dict) and 'value' in y else y))
-        
+        df = df.apply(lambda col: col.map(self._deserialize))
+        df = df.apply(lambda col: col.map(lambda x: x['value'] if isinstance(x, dict) and 'value' in x else x))
         return df
 
     def _rename_duplicate_columns(self, columns):
@@ -367,7 +348,8 @@ class Package:
             if col in seen:
                 seen[col] += 1
                 columns[i] = f"{col}_{seen[col]}"
-            else: seen[col] = 0
+            else:
+                seen[col] = 0
         return columns
 
     def _deserialize(self, x):

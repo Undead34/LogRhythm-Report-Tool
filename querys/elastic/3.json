@@ -20,7 +20,7 @@
         }
       }
     },
-    "stored_fields": [],
+    "stored_fields": ["msgClassName"],
     "query": {
       "bool": {
         "must": [
