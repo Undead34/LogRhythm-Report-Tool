@@ -10,6 +10,7 @@ from reportlab.lib.units import cm
 from modules.template.theme import ParagraphStyles
 from utils import ElementList
 from typing import TYPE_CHECKING, List
+from babel.numbers import format_number
 
 if TYPE_CHECKING:
     from modules.components import Components
@@ -49,6 +50,36 @@ class Draw:
         plt.yticks(np.arange(0, df[y_col].max(), step=300))
         plt.xticks(pd.date_range(start=df[x_col].min(), end=df[x_col].max(), freq='3D'))
         plt.legend()
+
+        return self._save_chart()
+
+    def simple_histogram(self, df: pd.DataFrame, x_col: str, y_col: str) -> str:
+        """
+        Generate a simple histogram chart from the given DataFrame.
+
+        Parameters:
+        df (pd.DataFrame): The input data frame containing the data to plot.
+        x_col (str): The name of the column to be used for the x-axis.
+        y_col (str): The name of the column to be used for the y-axis.
+
+        Returns:
+        str: The file path of the saved chart image.
+        """
+        plt.figure(figsize=(18, 10))
+        plt.bar(df[x_col], df[y_col], color='skyblue')
+
+        max_count = df[y_col].max()
+        max_date = df[x_col][df[y_col].idxmax()]
+        max_count_formatted = format_number(max_count, locale='es_ES')
+        plt.annotate(f'Max: {max_count_formatted}', (max_date, max_count), textcoords="offset points", xytext=(0, 10), ha='center', color='red')
+
+        # Reducing the frequency of x-axis ticks
+        plt.xticks(pd.date_range(start=df[x_col].min(), end=df[x_col].max(), freq='1D'), rotation=45)
+
+        plt.xlabel('Date')
+        plt.ylabel('Count')
+        plt.title('Histogram of Events by Day')
+        plt.grid(True)
 
         return self._save_chart()
 
@@ -215,7 +246,6 @@ class Draw:
         plt.close()
         return output
 
-
 class Charts:
     def __init__(self, components: 'Components') -> None:
         self.components = components
@@ -243,7 +273,7 @@ class Charts:
         by_date_and_name = df.groupby(['Alarm Date', 'Alarm Name']).size().reset_index(name='Counts')
 
         # Filter and group "Others"
-        threshold = 100
+        threshold = 0
         less_than = by_date_and_name[by_date_and_name['Counts'] < threshold]
         others = less_than.groupby('Alarm Date')['Counts'].sum().reset_index()
         others['Alarm Name'] = 'Others'
@@ -327,6 +357,29 @@ class Charts:
         ]
 
         return self.generate_report_elements("Mapa de Calor de Activaciones de Alarmas por Día y Hora", description, figure_src)
+
+    def heatmap_alarms_by_date_and_hour(self) -> ElementList:
+        df = self.db.get_alarm_details_by_entity()
+        if df.empty:
+            return [Paragraph("No hay datos disponibles para mostrar el mapa de calor.", self.theme.get_style(ParagraphStyles.NR_TEXTO_NGRAFICO))]
+
+        df['Alarm Date'] = pd.to_datetime(df['Alarm Date'])
+        df['Date'] = df['Alarm Date'].dt.date  # Extraer solo la fecha
+        df['Hour'] = df['Alarm Date'].dt.hour
+        df['Counts'] = df.get('Counts', 1)
+
+        pivot_df = df.pivot_table(index='Date', columns='Hour', values='Counts', aggfunc='sum', fill_value=0)
+        figure_src = self.draw.heatmap_chart(pivot_df)
+
+        description = [
+            "Este mapa de calor muestra la frecuencia de activaciones de alarmas en diferentes fechas y horas del día.",
+            "El eje **x** representa las horas del día, dividiendo las 24 horas en intervalos de una hora.",
+            "El eje **y** representa las fechas específicas.",
+            "Este gráfico es útil para identificar tendencias en las activaciones de alarmas a lo largo del tiempo."
+        ]
+
+        return self.generate_report_elements("Mapa de Calor de Activaciones de Alarmas por Fecha y Hora", description, figure_src)
+
 
     def scatter_plot_time_to_detection(self) -> ElementList:
         df = self.db.get_alarm_durations_cached()
@@ -485,7 +538,6 @@ class Charts:
 
         return self.generate_report_elements("Gráfico de Caja de Frecuencia de Ataques por Tipo de Fuente", description, figure_src)
 
-
     def pie_chart_attack_direction(self, df: pd.DataFrame) -> ElementList:
         if df.empty:
             return [Paragraph("No hay datos disponibles para mostrar el gráfico de pastel.", self.theme.get_style(ParagraphStyles.NR_TEXTO_NGRAFICO))]
@@ -510,6 +562,15 @@ class Charts:
         ]
 
         return self.generate_report_elements("Análisis de Series Temporales de Ataques por Prioridad", description, figure_src)
+
+    def events_histogram_by_month(self):
+        df = next(q.run() for q in self.pkg if q._id == "34607e55-49ea-44d9-a152-b3d2bdbae24b")
+        df['date'] = pd.to_datetime(df['date'])
+
+        chart_path = self.draw.simple_histogram(df, 'date', 'count')
+        description = [""]
+
+        return self.generate_report_elements("Number of events per day", description, chart_path)
 
 
     def replace_bold_with_font(self, text: str) -> str:

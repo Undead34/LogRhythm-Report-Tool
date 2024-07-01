@@ -10,7 +10,6 @@ class ElementList(list):
             other = [other]
         return super().__iadd__(other)
 
-
 def get_file_name(output_path: str, f: str, s: dict) -> str:
     options = {
         "ltime": datetime.now().strftime('%Y-%m-%d-%H-%M-%S'),

@@ -83,6 +83,8 @@ class Elastic:
             return self._replace_placeholders_type_2(data, date_range)
         elif data['type'] == "3":
             return self._replace_placeholders_type_3(data, date_range)
+        elif data['type'] == "4":
+            return self._replace_placeholders_type_4(data, date_range)
         else:
             raise ValueError(f"Tipo de datos no reconocido: {data['type']}")
 
@@ -111,6 +113,15 @@ class Elastic:
 
         entity_ids_str = " OR ".join([str(id) for id in self._entity_ids['EntityID']])
         query_str = query_str.replace('{{entity_ids}}', f'entityId: ({entity_ids_str})')
+
+        return self._load_json_str(query_str)
+
+    def _replace_placeholders_type_4(self, data: dict, date_range: dict) -> dict:
+        query_str = json.dumps(data['query'])
+        query_str = query_str.replace('{{gte}}', str(date_range['gte'])).replace('{{lte}}', str(date_range['lte']))
+
+        entity_ids_str = " AND ".join([f"entityId:{id}" for id in self._entity_ids['EntityID']])
+        query_str = query_str.replace('{{entity_ids}}', entity_ids_str)
 
         return self._load_json_str(query_str)
 
@@ -148,6 +159,8 @@ class Package:
                 df = self._handle_type_2(response)
             elif self._type == "3":
                 df = self._handle_type_3(response)
+            elif self._type == "4":
+                df = self._handle_type_4(response)
             else:
                 raise ValueError(f"Tipo de datos no reconocido: {self._type}")
 
@@ -156,7 +169,7 @@ class Package:
         except Exception as e:
             print(e)
             return pd.DataFrame()
-
+    
     def _validate_query_parameters(self):
         if not self._id or not self._index or not self._query:
             raise ValueError("ID, index, and query must be provided.")
@@ -200,6 +213,15 @@ class Package:
         else:
             df_aggs = pd.DataFrame()
 
+        return df_aggs
+
+    def _handle_type_4(self, response):
+        aggregations = self._extract_aggregations(response)
+        
+        if aggregations:
+            df_aggs = self._create_dataframe_from_date_histogram_aggregations(aggregations)
+        else:
+            df_aggs = pd.DataFrame()
         return df_aggs
 
     def _extract_hits(self, response):
@@ -308,18 +330,35 @@ class Package:
         standardized_fields = [{key: fields.get(key, [None]) for key in all_keys} for fields in all_fields]
         return standardized_fields
 
+    def _extract_aggregations(self, response):
+        aggregations = response.get("aggregations", {})
+        if not aggregations:
+            return []
+
+        aggs_key = list(self._query['aggs'].keys())[0]
+        return aggregations.get(aggs_key, {}).get("buckets", [])
+
+    def _create_dataframe_from_date_histogram_aggregations(self, data) -> pd.DataFrame:
+        if not data:
+            return pd.DataFrame()
+        # Convertir los buckets en un DataFrame
+        df = pd.DataFrame(data)
+        if not df.empty:
+            df.rename(columns={"key_as_string": "date", "key": "epoch_millis", "doc_count": "count"}, inplace=True)
+        return df
+
     def _normalize_array_values(self, df: pd.DataFrame) -> pd.DataFrame:
         # Normaliza los valores que vienen como arrays a valores simples si solo tienen un elemento
         df = df.apply(lambda x: x.map(lambda y: y[0] if isinstance(y, list) and len(y) == 1 else y))
-
+        
         # Renombrar columnas duplicadas
         df.columns = self._rename_duplicate_columns(list(df.columns))
-
+        
         df = df.apply(lambda x: x.map(self._deserialize))
-
+        
         # Aplicar lambda para extraer el valor de los diccionarios si existen
         df = df.apply(lambda x: x.map(lambda y: y['value'] if isinstance(y, dict) and 'value' in y else y))
-
+        
         return df
 
     def _rename_duplicate_columns(self, columns):

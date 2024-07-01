@@ -1,0 +1,47 @@
+{
+  "id": "34607e55-49ea-44d9-a152-b3d2bdbae24b",
+  "name": "Events in the month",
+  "description": "<Descripción de la consulta>",
+  "mode": "single",
+  "index": ["logs-*"],
+  "aggregation_result": true,
+  "type": "4",
+  "query": {
+    "size": 500,
+    "sort": [{ "normalDate": { "order": "desc", "unmapped_type": "boolean" } }],
+    "_source": { "excludes": [] },
+    "aggs": {
+      "2": {
+        "date_histogram": {
+          "field": "normalDate",
+          "interval": "1d",
+          "time_zone": "America/New_York",
+          "min_doc_count": 1
+        }
+      }
+    },
+    "stored_fields": [],
+    "query": {
+      "bool": {
+        "must": [
+          {
+            "query_string": {
+              "query": "isEvent: true AND {{entity_ids}}",
+              "analyze_wildcard": true,
+              "default_field": "*"
+            }
+          },
+          {
+            "range": {
+              "normalDate": {
+                "gte": "{{gte}}",
+                "lte": "{{lte}}",
+                "format": "epoch_millis"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

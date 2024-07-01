@@ -88,6 +88,11 @@ class Components:
                 "ID": "box_plot_time_to_detection",
                 "Name": "box_plot_alarm_durations",
                 "Callback": self.charts.box_plot_time_to_detection
+            },
+            {
+                "ID": "heatmap_alarms_by_date_and_hour",
+                "Name": "heatmap_alarms_by_date_and_hour",
+                "Callback": self.charts.heatmap_alarms_by_date_and_hour
             }
         ])
 

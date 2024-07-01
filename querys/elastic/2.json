@@ -1,0 +1,66 @@
+{
+  "id": "df252bd1-4cca-47d0-955d-5a3cea2afc5f",
+  "name": "Top Vulnerabilities",
+  "description": "<Descripción de la consulta>",
+  "mode": "single",
+  "index": ["logs-*"],
+  "aggregation_result": true,
+  "type": "3",
+  "query": {
+    "size": 0,
+    "query": {
+      "bool": {
+        "must": [
+          {
+            "query_string": {
+              "query": "(msgClassName: vulnerability OR commonEventName: /.*vuln(?:er(?:ability)?)?.*/) AND cve: * AND {{entity_ids}}",
+              "analyze_wildcard": true,
+              "default_field": "*"
+            }
+          },
+          {
+            "range": {
+              "normalDate": {
+                "gte": "{{gte}}",
+                "lte": "{{lte}}",
+                "format": "epoch_millis"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "aggs": {
+      "top_origin_ips": {
+        "terms": {
+          "field": "originIp",
+          "size": 500,
+          "order": {
+            "_count": "desc"
+          }
+        },
+        "aggs": {
+          "top_hits": {
+            "top_hits": {
+              "size": 1,
+              "stored_fields": [
+                "normalDate",
+                "account",
+                "entityName",
+                "logSourceName",
+                "severity",
+                "size",
+                "status",
+                "priority",
+                "msgClassName",
+                "riskRating",
+                "impactedIp",
+                "size"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -94,6 +94,8 @@ def get_signature(default_signature: dict) -> dict:
     answers["producer"] = default_signature.get("producer", "LogRhythm Report Tool - github.com/Undead34")
     answers["creator"] = default_signature.get("creator", "@Undead34")
 
+    print(answers)
+
     return answers
 
 def use_template():
