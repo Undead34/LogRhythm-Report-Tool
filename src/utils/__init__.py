@@ -3,7 +3,6 @@ import pandas as pd
 import uuid
 import os
 
-
 class ElementList(list):
     def __iadd__(self, other):
         if not isinstance(other, list):

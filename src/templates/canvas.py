@@ -1,7 +1,6 @@
 from reportlab.lib.pagesizes import LETTER
-from reportlab.lib.units import cm, inch
-from reportlab.lib.colors import HexColor
 from reportlab.pdfgen import canvas
+from reportlab.lib.units import cm
 
 
 class Canvas(canvas.Canvas):
@@ -24,13 +23,14 @@ class Canvas(canvas.Canvas):
         canvas.Canvas.showPage(self)
 
     def save(self):
-        # Metadata
-        self.setAuthor(self.metadata.get("author"))
-        self.setProducer(self.metadata.get("producer"))
-        self.setCreator(self.metadata.get("creator"))
-        self.setSubject(self.metadata.get("subject"))
-        self.setTitle(self.metadata.get("title"))
-        self.setKeywords(self.metadata.get("keywords"))
+        if self.metadata:
+            self.setAuthor(self.metadata.get("author"))
+            self.setProducer(self.metadata.get("producer"))
+            self.setCreator(self.metadata.get("creator"))
+            self.setSubject(self.metadata.get("subject"))
+            self.setTitle(self.metadata.get("title"))
+            self.setKeywords(self.metadata.get("keywords"))
+        
         canvas.Canvas.save(self)
 
         # Lines

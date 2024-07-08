@@ -7,7 +7,9 @@ temp/
 output/
 examples/
 .tmp
+*.tmp
 .temp
+*.temp
 # C extensions
 *.so
 

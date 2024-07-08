@@ -84,6 +84,8 @@ class Elastic:
             return self._replace_placeholders_type_3(data, date_range)
         elif data['type'] == "4":
             return self._replace_placeholders_type_4(data, date_range)
+        elif data['type'] == "5":
+            return self._replace_placeholders_type_5(data, date_range)
         else:
             raise ValueError(f"Tipo de datos no reconocido: {data['type']}")
 
@@ -124,6 +126,16 @@ class Elastic:
 
         return self._load_json_str(query_str)
 
+    def _replace_placeholders_type_5(self, data: dict, date_range: dict) -> dict:
+        query_str = json.dumps(data['query'])
+        query_str = query_str.replace('{{gte}}', str(date_range['gte'])).replace('{{lte}}', str(date_range['lte']))
+
+        entity_ids_str = " OR ".join([str(id) for id in self._entity_ids['EntityID']])
+        query_str = query_str.replace('{{entity_ids}}', f'entityId: ({entity_ids_str})')
+
+        return self._load_json_str(query_str)
+
+
     def _load_json_str(self, json_str: str) -> dict:
         try:
             return json.loads(json_str)
@@ -160,6 +172,8 @@ class Package:
                 df = self._handle_type_3(response)
             elif self._type == "4":
                 df = self._handle_type_4(response)
+            elif self._type == "5":
+                df = self._handle_type_5(response)
             else:
                 raise ValueError(f"Tipo de datos no reconocido: {self._type}")
 
@@ -229,6 +243,14 @@ class Package:
         df = pd.concat([df_hits, df_aggs], axis=1) if not df_hits.empty and not df_aggs.empty else df_hits if not df_hits.empty else df_aggs
         return df
 
+    def _handle_type_5(self, response):
+        aggregations = self._extract_aggregations(response)
+        if not aggregations:
+            return pd.DataFrame()
+
+        df_aggs = self._create_dataframe_from_aggregations(aggregations)
+        return df_aggs
+
     def _extract_hits(self, response):
         if "responses" in response:
             hits = []
@@ -288,6 +310,23 @@ class Package:
         df = pd.DataFrame(data)
         df.rename(columns={"key": field_name, "doc_count": "count"}, inplace=True)
         return df
+    
+    def _create_dataframe_from_aggregations(self, aggregations):
+        def extract_buckets(data, prefix=""):
+            rows = []
+            for bucket in data:
+                row = {f"{prefix}{key}": value for key, value in bucket.items() if key != "buckets"}
+                if "buckets" in bucket:
+                    sub_buckets = extract_buckets(bucket["buckets"], prefix=f"{prefix}{bucket['key']}_")
+                    for sub_bucket in sub_buckets:
+                        combined_row = {**row, **sub_bucket}
+                        rows.append(combined_row)
+                else:
+                    rows.append(row)
+            return rows
+
+        rows = extract_buckets(aggregations)
+        return pd.DataFrame(rows)
 
     def _create_dataframe_from_date_histogram_aggregations(self, data) -> pd.DataFrame:
         df = pd.DataFrame(data)
