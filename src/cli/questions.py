@@ -7,7 +7,6 @@ import os
 from .date_selector import DateSelector
 from .list_reorder import ListReorder
 
-
 def select_entities(entities_df: pd.DataFrame) -> pd.DataFrame:
     """
     Permite al usuario seleccionar múltiples entidades desde un DataFrame.

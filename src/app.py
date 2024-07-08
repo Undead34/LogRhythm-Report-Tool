@@ -51,7 +51,6 @@ class Config:
 
 def run_interactive_mode(args) -> Config:
     logger = get_logger()
-    logger.info("Iniciando modo interactivo...")
     
     config = Config()
 
