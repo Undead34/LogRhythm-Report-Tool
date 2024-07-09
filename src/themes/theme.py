@@ -1,10 +1,12 @@
 from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.colors import HexColor, Color
+from reportlab.lib.colors import HexColor
+from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER, TA_JUSTIFY
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 from reportlab.lib.units import cm
+from reportlab.platypus import TableStyle
 from reportlab.lib.pagesizes import LETTER
 
 from enum import Enum
@@ -16,6 +18,7 @@ from src.utils.constants import FONTS, CHARTS_DIR
 
 class ParagraphStyles(Enum):
     TEXT_NORMAL = 'Text-Normal'
+    SUB_TEXT_NORMAL = 'Sub-Text-Normal'
     TEXT_BOLD = 'Text-Bold'
     TEXT_GRAPHIC = 'Text-Graphic'
     TITLE_1 = 'Title-1'
@@ -25,6 +28,10 @@ class ParagraphStyles(Enum):
     TABLE_HEADER_CONTENT = 'Table-Header-Content'
     TEXT_ITALIC = 'Text-Italic'
     LIST = 'List'
+    SUB_LIST = 'Sub-List'
+
+class CustomTableStyles(Enum):
+    DEFAULT = 'default'
 
 class Theme():
     def __init__(self) -> None:
@@ -48,6 +55,7 @@ class Theme():
 
         self._register_fonts()
         self._initialize_paragraph_styles()
+        self._initialize_table_styles()
 
     def _register_fonts(self):
         try:
@@ -69,7 +77,12 @@ class Theme():
                                   fontSize=12,
                                   spaceAfter=12,
                                   alignment=TA_JUSTIFY,
-                                  leading=13.8
+                                  leading=13.8,
+                                  ))
+        
+        styles.add(ParagraphStyle(ParagraphStyles.SUB_TEXT_NORMAL.value,
+                                  parent=styles[ParagraphStyles.TEXT_NORMAL.value],
+                                  leftIndent= 1 * cm
                                   ))
 
         styles.add(ParagraphStyle(ParagraphStyles.TEXT_BOLD.value,
@@ -132,10 +145,39 @@ class Theme():
                                   spaceAfter=6,
                                   spaceBefore=6,
                                   leading=13.8))
+        
+        styles.add(ParagraphStyle(name=ParagraphStyles.SUB_LIST.value,
+                                  parent=styles[ParagraphStyles.LIST.value],
+                                  leftIndent= 1 * cm))
 
-    def get_style(self, style_name: ParagraphStyles | str) -> ParagraphStyle:
+    def _initialize_table_styles(self):
+        self.table_styles = {
+            CustomTableStyles.DEFAULT.value: TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#8cbbd2")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 10),
+                ('TEXTCOLOR', (0, 1), (-1, -1), colors.HexColor("#333333")),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
+                ('WORDWRAP', (0, 0), (-1, -1), True)
+            ])
+        }
+
+    def get_style(self, style_name: ParagraphStyles | CustomTableStyles  |str) -> ParagraphStyle:
         if isinstance(style_name, str):
-            return self.style_sheet.get(style_name)
+            if style_name in self.style_sheet:
+                return self.style_sheet.get(style_name)
+            else:
+                return self.table_styles.get(style_name, self.table_styles['default'])
+        elif isinstance(style_name, CustomTableStyles):
+            return self.table_styles.get(style_name.value)
         else:
             return self.style_sheet.get(style_name.value)
 

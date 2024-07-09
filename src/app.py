@@ -31,7 +31,7 @@ class Config:
         config = Config()
 
         # Modo debug: usar valores predefinidos
-        start, end = datetime(2024, 6, 20), datetime(2024, 7, 9)
+        start, end = datetime(2024, 6, 20), datetime(2024, 6, 30)
         entities = pd.DataFrame(data={'EntityID': [4], 'FullName': ['Farmatodo']})
         signature = DEFAULT_SIGNATURE.copy()
         client_name, client_logo = 'Farmatodo', './assets/images/clients/farmatodo/logo.png'

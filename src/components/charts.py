@@ -63,7 +63,7 @@ class Bar(BaseChart):
         plt.tight_layout()
 
 class Line(BaseChart):
-    def __init__(self, df: pd.DataFrame, x_col: str, y_col: str, title: Optional[str] = None, category_col: Optional[str] = None, show_legend: bool = True, show_max_annotate: bool = True, axies_labels: bool = True) -> None:
+    def __init__(self, df: pd.DataFrame, x_col: str, y_col: str, title: Optional[str] = None, category_col: Optional[str] = None, show_legend: bool = True, show_max_annotate: bool = True, axis_labels: bool = True) -> None:
         super().__init__()
 
         colors = self.get_palette(df[category_col].nunique() if category_col else 1)
@@ -106,7 +106,7 @@ class Line(BaseChart):
 
         if title:
             plt.title(title)
-        if axies_labels:
+        if axis_labels:
             plt.xlabel(x_col)
             plt.ylabel(y_col)
         

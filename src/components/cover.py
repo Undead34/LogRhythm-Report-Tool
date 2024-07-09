@@ -1,8 +1,6 @@
 from reportlab.platypus import Image, Spacer, Paragraph, PageBreak
-from reportlab.lib.units import cm
-from reportlab.lib.pagesizes import LETTER
-from reportlab.lib.styles import ParagraphStyle
 from src.themes.theme import Theme, ParagraphStyles
+from reportlab.lib.units import cm
 
 class Cover():
     def __init__(self, title: str, enterprise_logo: str, client_logo: str, text: str, footer: str, theme: 'Theme') -> None:
