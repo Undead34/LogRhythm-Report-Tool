@@ -6,6 +6,7 @@ import os
 from uuid import uuid4 as v4
 import seaborn as sns
 
+from typing import Optional
 
 class BaseChart():
     def __init__(self) -> None:
@@ -61,6 +62,59 @@ class Bar(BaseChart):
             plt.legend(bars, legend_labels, title=legend_title, bbox_to_anchor=(1.05, 1), loc='upper left')
         plt.tight_layout()
 
+class Line(BaseChart):
+    def __init__(self, df: pd.DataFrame, x_col: str, y_col: str, title: Optional[str] = None, category_col: Optional[str] = None, show_legend: bool = True, show_max_annotate: bool = True, axies_labels: bool = True) -> None:
+        super().__init__()
+
+        colors = self.get_palette(df[category_col].nunique() if category_col else 1)
+        
+        plt.figure(figsize=(18, 10))
+
+        if category_col:
+            for i, (name, group) in enumerate(df.groupby(category_col)):
+                plt.plot(group[x_col], group[y_col], label=f"{name}", color=colors[i % len(colors)])
+                
+                # Agregar anotación y línea vertical si el grupo tiene solo un evento
+                if group['Counts'].sum() == 1:
+                    event_date = group[x_col].iloc[0]
+                    plt.axvline(x=event_date, color=colors[i % len(colors)], linestyle='--')
+                    plt.annotate(f'1 Event', (event_date, 1), textcoords="offset points", xytext=(0, 10), ha='center', color=colors[i % len(colors)])
+                
+                # Anotar el máximo valor
+                if show_max_annotate:
+                    max_count = group[y_col].max()
+                    max_date = group[x_col][group[y_col].idxmax()]
+                    plt.annotate(f'Max: {max_count}', (max_date, max_count), textcoords="offset points", xytext=(0, 10), ha='center', color=colors[i % len(colors)])
+        else:
+            plt.bar(df[x_col], df[y_col], color=colors[0])
+            
+            # Agregar anotación y línea vertical si el total de eventos es 1
+            if df['Counts'].sum() == 1:
+                event_date = df[x_col].iloc[0]
+                plt.axvline(x=event_date, color=colors[0], linestyle='--')
+                plt.annotate(f'1 Event', (event_date, 1), textcoords="offset points", xytext=(0, 10), ha='center', color=colors[0])
+            
+            # Anotar el máximo valor
+            if show_max_annotate:
+                max_count = df[y_col].max()
+                max_date = df[x_col][df[y_col].idxmax()]
+                plt.annotate(f'Max: {max_count}', (max_date, max_count), textcoords="offset points", xytext=(0, 10), ha='center', color=colors[0])
+
+        # Añadir el número total de eventos
+        total_events = df[y_col].sum()
+        plt.annotate(f'Total Events: {total_events}', xy=(0.99, 0.01), xycoords='axes fraction', ha='right', va='bottom', fontsize=12, bbox=dict(facecolor='white', alpha=0.5))
+
+        if title:
+            plt.title(title)
+        if axies_labels:
+            plt.xlabel(x_col)
+            plt.ylabel(y_col)
+        
+        if show_legend:
+            plt.legend(title=category_col if category_col else 'Legend')
+        
+        plt.tight_layout()
+
 class Pie():
     def __init__(self, df: pd.DataFrame) -> None:
         BaseChart.__init__()
@@ -70,10 +124,6 @@ class HeatMap():
         BaseChart.__init__()
 
 class Historigram():
-    def __init__(self, df: pd.DataFrame) -> None:
-        BaseChart.__init__()
-
-class Line():
     def __init__(self, df: pd.DataFrame) -> None:
         BaseChart.__init__()
 
