@@ -1,4 +1,4 @@
-from reportlab.platypus import Paragraph, ListFlowable, ListItem, PageBreak
+from reportlab.platypus import Paragraph, ListFlowable, ListItem, PageBreak, Spacer
 from reportlab.lib.units import cm
 
 from .charts import Bar, Pie, HeatMap, Historigram, Line, Box, Stacked, Scatter, Pareto, Bubble

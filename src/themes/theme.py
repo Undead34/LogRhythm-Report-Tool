@@ -30,6 +30,18 @@ class ParagraphStyles(Enum):
     LIST = 'List'
     SUB_LIST = 'Sub-List'
 
+
+class FontsNames(Enum):
+    OPENSANS_REGULAR = "OpenSans-Regular"
+    OPENSANS_BOLD = "OpenSans-Bold"
+    CONTHRAX = "Conthrax"
+
+    # Arial Narrow Font
+    ARIALNARROW = "Arial-Narrow"
+    ARIALNARROW_BOLD = "Arial-Narrow-Bold"
+    ARIALNARROW_ITALIC = "Arial-Narrow-Italic"
+    ARIALNARROW_BOLD_ITALIC = "Arial-Narrow-Bold-Italic"
+
 class CustomTableStyles(Enum):
     DEFAULT = 'default'
 

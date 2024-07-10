@@ -7,6 +7,7 @@ from uuid import uuid4 as v4
 import seaborn as sns
 
 from typing import Optional
+import random
 
 class BaseChart():
     def __init__(self) -> None:
@@ -78,13 +79,12 @@ class Line(BaseChart):
                 if group['Counts'].sum() == 1:
                     event_date = group[x_col].iloc[0]
                     plt.axvline(x=event_date, color=colors[i % len(colors)], linestyle='--')
-                    plt.annotate(f'1 Event', (event_date, 1), textcoords="offset points", xytext=(0, 10), ha='center', color=colors[i % len(colors)])
-                
+
                 # Anotar el máximo valor
                 if show_max_annotate:
                     max_count = group[y_col].max()
                     max_date = group[x_col][group[y_col].idxmax()]
-                    plt.annotate(f'Max: {max_count}', (max_date, max_count), textcoords="offset points", xytext=(0, 10), ha='center', color=colors[i % len(colors)])
+                    plt.annotate(f'Max: {max_count}', (max_date, max_count), textcoords="offset points", xytext=(0, random.randint(0, 12)), ha='center', color=colors[i % len(colors)])
         else:
             plt.bar(df[x_col], df[y_col], color=colors[0])
             
@@ -92,7 +92,6 @@ class Line(BaseChart):
             if df['Counts'].sum() == 1:
                 event_date = df[x_col].iloc[0]
                 plt.axvline(x=event_date, color=colors[0], linestyle='--')
-                plt.annotate(f'1 Event', (event_date, 1), textcoords="offset points", xytext=(0, 10), ha='center', color=colors[0])
             
             # Anotar el máximo valor
             if show_max_annotate:
