@@ -1,18 +1,14 @@
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.colors import HexColor
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER, TA_JUSTIFY
-from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 from reportlab.lib.units import cm
 from reportlab.platypus import TableStyle
 from reportlab.lib.pagesizes import LETTER
-
 from enum import Enum
 import shutil
 import os
-
 from src.utils.constants import FONTS, CHARTS_DIR
 
 
@@ -35,21 +31,50 @@ class FontsNames(Enum):
     OPENSANS_REGULAR = "OpenSans-Regular"
     OPENSANS_BOLD = "OpenSans-Bold"
     CONTHRAX = "Conthrax"
-
-    # Arial Narrow Font
     ARIALNARROW = "Arial-Narrow"
     ARIALNARROW_BOLD = "Arial-Narrow-Bold"
     ARIALNARROW_ITALIC = "Arial-Narrow-Italic"
     ARIALNARROW_BOLD_ITALIC = "Arial-Narrow-Bold-Italic"
 
+
 class CustomTableStyles(Enum):
     DEFAULT = 'default'
 
-class Theme():
+class CustomTableStyle:
+    def __init__(self, table_style, cell_styles=None) -> None:
+        self.table_style = table_style
+        self.cell_styles = cell_styles or self._default_cell_styles()
+
+    def _default_cell_styles(self):
+        styles = [
+            {'fontName': FontsNames.ARIALNARROW.value, 'fontSize': 10, 'textColor': HexColor(0x000000)},       # Content style
+        ]
+        return styles
+
+    def get_cell_styles(self, row: int):
+        return self.cell_styles[row % len(self.cell_styles)]
+
+    def get_paragraph_style(self, row: int, col: int) -> ParagraphStyle:
+        style_dict = self.get_cell_styles(row)
+        return ParagraphStyle(name=f'Custom-{row}-{col}',
+                              fontName=style_dict['fontName'],
+                              fontSize=style_dict['fontSize'],
+                              textColor=style_dict['textColor'],
+                              alignment=TA_CENTER)
+
+class Theme:
     def __init__(self) -> None:
         self.style_sheet = getSampleStyleSheet()
+        self.colors = self._define_colors()
+        self.leftMargin = self.rightMargin = 2.5 * cm
+        self.topMargin = self.bottomMargin = 2 * cm
+        self.page_width, self.page_height = LETTER
+        self._register_fonts()
+        self._initialize_paragraph_styles()
+        self._initialize_table_styles()
 
-        self.colors = {
+    def _define_colors(self):
+        return {
             'orange': HexColor(0xF96611),
             'yellow': HexColor(0xF9A40E),
             'blue': HexColor(0x4AAEC9),
@@ -58,27 +83,21 @@ class Theme():
             'light_blue': HexColor(0x3796BF),
             'gray': HexColor(0x8C8984),
             'black': HexColor(0x000000),
-            'white': HexColor(0xFFFFFF)
+            'white': HexColor(0xFFFFFF),
+            'whitesmoke': HexColor(0xF5F5F5),
+            'lightgrey': HexColor(0xD3D3D3)
         }
-
-        self.leftMargin = self.rightMargin = 2.5 * cm
-        self.topMargin = self.bottomMargin = 2 * cm
-        self.page_width, self.page_height = LETTER
-
-        self._register_fonts()
-        self._initialize_paragraph_styles()
-        self._initialize_table_styles()
 
     def _register_fonts(self):
         try:
-            for f in FONTS:
-                pdfmetrics.registerFont(TTFont(f[0], f[1]))
+            for name, path in FONTS:
+                pdfmetrics.registerFont(TTFont(name, path))
 
             os.makedirs(CHARTS_DIR, exist_ok=True)
             shutil.rmtree(CHARTS_DIR)
             os.makedirs(CHARTS_DIR, exist_ok=True)
-        except:
-            print("The error occurred when trying to load the fonts and/or create the necessary folders.")
+        except Exception as e:
+            print(f"Error loading fonts or creating folders: {e}")
             exit(1)
 
     def _initialize_paragraph_styles(self):
@@ -89,33 +108,28 @@ class Theme():
                                   fontSize=12,
                                   spaceAfter=12,
                                   alignment=TA_JUSTIFY,
-                                  leading=13.8,
-                                  ))
-        
+                                  leading=13.8))
+
         styles.add(ParagraphStyle(ParagraphStyles.SUB_TEXT_NORMAL.value,
                                   parent=styles[ParagraphStyles.TEXT_NORMAL.value],
-                                  leftIndent= 1 * cm
-                                  ))
+                                  leftIndent=1 * cm))
 
         styles.add(ParagraphStyle(ParagraphStyles.TEXT_BOLD.value,
                                   fontName="Arial-Narrow-Bold",
-                                  parent=styles[ParagraphStyles.TEXT_NORMAL.value],
-                                  ))
+                                  parent=styles[ParagraphStyles.TEXT_NORMAL.value]))
 
         styles.add(ParagraphStyle(ParagraphStyles.TABLE_HEADER.value,
                                   fontName="Arial-Narrow-Bold",
                                   fontSize=12,
                                   alignment=TA_CENTER,
                                   textColor=self.colors['white'],
-                                  leading=13.8
-                                  ))
+                                  leading=13.8))
 
         styles.add(ParagraphStyle(ParagraphStyles.TABLE_HEADER_CONTENT.value,
                                   alignment=TA_CENTER,
                                   spaceAfter=0,
                                   leftIndent=0,
-                                  parent=styles[ParagraphStyles.TEXT_NORMAL.value],
-                                  ))
+                                  parent=styles[ParagraphStyles.TEXT_NORMAL.value]))
 
         styles.add(ParagraphStyle(name=ParagraphStyles.TEXT_GRAPHIC.value,
                                   fontName='Arial-Narrow-Bold-Italic',
@@ -157,46 +171,44 @@ class Theme():
                                   spaceAfter=6,
                                   spaceBefore=6,
                                   leading=13.8))
-        
+
         styles.add(ParagraphStyle(name=ParagraphStyles.SUB_LIST.value,
                                   parent=styles[ParagraphStyles.LIST.value],
-                                  leftIndent= 1 * cm))
+                                  leftIndent=1 * cm))
 
     def _initialize_table_styles(self):
         self.table_styles = {
-            CustomTableStyles.DEFAULT.value: TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#8cbbd2")),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            CustomTableStyles.DEFAULT.value: CustomTableStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), HexColor("#8cbbd2")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), self.colors.get("white")),
                 ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTNAME', (0, 0), (-1, 0), FontsNames.ARIALNARROW_BOLD.value),
                 ('FONTSIZE', (0, 0), (-1, 0), 12),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                ('BACKGROUND', (0, 1), (-1, -1), self.colors.get("whitesmoke")),
+                ('GRID', (0, 0), (-1, -1), 0.5, self.colors.get("black")),
                 ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTNAME', (0, 1), (-1, -1), FontsNames.ARIALNARROW.value),
                 ('FONTSIZE', (0, 1), (-1, -1), 10),
-                ('TEXTCOLOR', (0, 1), (-1, -1), colors.HexColor("#333333")),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
+                ('TEXTCOLOR', (0, 1), (-1, -1), HexColor("#333333")),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [self.colors.get("whitesmoke"), self.colors.get("lightgrey")]),
                 ('WORDWRAP', (0, 0), (-1, -1), True)
-            ])
+            ]))
         }
 
-    def get_style(self, style_name: ParagraphStyles | CustomTableStyles  |str) -> ParagraphStyle:
+    def get_style(self, style_name: ParagraphStyles | CustomTableStyles | str) -> ParagraphStyle | CustomTableStyle:
         if isinstance(style_name, str):
             if style_name in self.style_sheet:
                 return self.style_sheet.get(style_name)
-            else:
-                return self.table_styles.get(style_name, self.table_styles['default'])
+            return self.table_styles.get(style_name, self.table_styles[CustomTableStyles.DEFAULT.value])
         elif isinstance(style_name, CustomTableStyles):
             return self.table_styles.get(style_name.value)
-        else:
-            return self.style_sheet.get(style_name.value)
+        return self.style_sheet.get(style_name.value)
 
     def replace_bold_with_font(self, text):
         import re
         return re.sub(r'\*\*(.*?)\*\*', r'<font face="Arial-Narrow-Bold">\1</font>', text)
-    
+
     def replace_italic_with_font(self, text):
         import re
         return re.sub(r'__(.*?)__', r'<font face="Arial-Narrow-Italic">\1</font>', text)

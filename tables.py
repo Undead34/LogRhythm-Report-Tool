@@ -149,8 +149,8 @@ class Tables():
         left_margin, right_margin = self.report.leftMargin, self.report.rightMargin
         usable_width = LETTER[0] - left_margin - right_margin - sangria
 
-        header_style = self.theme.get_style(ParagraphStyles.NR_TABLE_HEADER_1)
-        body_style = self.theme.get_style(ParagraphStyles.NR_TABLE_HEADER_CONTENT_1)
+        header_style = self.theme.get_style(ParagraphStyles.TABLE_HEADER)
+        body_style = self.theme.get_style(ParagraphStyles.TABLE_HEADER_CONTENT)
 
         def calculate_column_widths(data, style, padding):
             return [

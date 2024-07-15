@@ -14,7 +14,7 @@
       "2": {
         "date_histogram": {
           "field": "normalDate",
-          "interval": "1d",
+          "interval": "1h",
           "time_zone": "America/New_York",
           "min_doc_count": 1
         }
