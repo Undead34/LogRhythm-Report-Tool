@@ -25,6 +25,18 @@ class Elastic:
             raise ValueError("entity_ids debe ser un DataFrame de pandas")
         self._entity_ids = entity_ids
 
+    def export_to_csv(self, directory: str, output: str) -> None:
+        if not os.path.exists(directory):
+            os.makedirs(directory, True)
+        
+        queries = self.load_queries(directory)
+        for query in queries:
+            df = query.run()
+            if not df.empty:
+                print(f"Exportando {query._name}")
+                file_name = f"{query._name}.csv"
+                df.to_csv(os.path.join(output, file_name), index=False)
+
     def load_queries(self, folder: str) -> list['Package']:
         folder_path = os.path.realpath(folder)
         self._validate_folder_path(folder_path)
@@ -86,8 +98,11 @@ class Elastic:
             return self._replace_placeholders_type_4(data, date_range)
         elif data['type'] == "5":
             return self._replace_placeholders_type_5(data, date_range)
+        elif data['type'] == "6":
+            return self._replace_placeholders_type_6(data, date_range)
         else:
             raise ValueError(f"Tipo de datos no reconocido: {data['type']}")
+
 
     def _replace_placeholders_type_1(self, data: dict, date_range: dict) -> dict:
         query_str = json.dumps(data['query'])
@@ -135,6 +150,15 @@ class Elastic:
 
         return self._load_json_str(query_str)
 
+    def _replace_placeholders_type_6(self, data: dict, date_range: dict) -> dict:
+        query_str = json.dumps(data['query'])
+        query_str = query_str.replace('{{gte}}', str(date_range['gte'])).replace('{{lte}}', str(date_range['lte']))
+
+        entity_ids_str = " AND ".join([f"entityId:{id}" for id in self._entity_ids['EntityID']])
+        query_str = query_str.replace('{{entity_ids}}', entity_ids_str)
+
+        return self._load_json_str(query_str)
+
 
     def _load_json_str(self, json_str: str) -> dict:
         try:
@@ -174,6 +198,8 @@ class Package:
                 df = self._handle_type_4(response)
             elif self._type == "5":
                 df = self._handle_type_5(response)
+            elif self._type == "6":
+                df = self._handle_type_6(response)
             else:
                 raise ValueError(f"Tipo de datos no reconocido: {self._type}")
 
@@ -250,6 +276,22 @@ class Package:
 
         df_aggs = self._create_dataframe_from_aggregations(aggregations)
         return df_aggs
+
+    def _handle_type_6(self, response):
+        aggregations = self._extract_aggregations(response)
+        if not aggregations:
+            return pd.DataFrame()
+
+        df_list = []
+        for bucket in aggregations:
+            bucket_key = bucket['key']
+            date_histogram = bucket['date_histogram']['buckets']
+            df_histogram = self._create_dataframe_from_date_histogram_aggregations(date_histogram)
+            df_histogram['msg_class_name'] = bucket_key
+            df_list.append(df_histogram)
+
+        df = pd.concat(df_list, ignore_index=True)
+        return df
 
     def _extract_hits(self, response):
         if "responses" in response:

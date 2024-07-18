@@ -1,7 +1,7 @@
 {
-  "id": "337fb1d3-a5be-4f20-9928-f662ae002910",
-  "name": "top_events_vulnerability_analysis",
-  "description": "Realiza una búsqueda y agregación en los índices de logs para detectar los eventos relacionados con vulnerabilidades más recientes, filtrando por el nombre de la clase de mensaje, el nombre común del evento, y asegurando que el campo CVE esté presente y sea un evento válido.",
+  "id": "6e867b27-ad83-4c4d-bc41-8af86dc5989a",
+  "name": "top_ip_impacted_by_attackers",
+  "description": "Realiza una búsqueda y agregación en los índices de logs para detectar los eventos de ataques más recientes, filtrando por ubicación impactada, IP impactada y tipo de mensaje.",
   "mode": "single",
   "index": [
     "logs-*"
@@ -15,7 +15,7 @@
         "must": [
           {
             "query_string": {
-              "query": "cve:/.*cve-[0-9]{4}-[0-9]{4,}.*/ AND isEvent: false AND {{entity_ids}}",
+              "query": "impactedLocationName: * AND impactedIp: * AND msgClassName: attack AND isEvent: true AND {{entity_ids}}",
               "analyze_wildcard": true,
               "default_field": "*"
             }
@@ -33,9 +33,9 @@
       }
     },
     "aggs": {
-      "top_cve": {
+      "top_origin_ips": {
         "terms": {
-          "field": "cve",
+          "field": "impactedIp",
           "size": 500,
           "order": {
             "_count": "desc"
@@ -46,22 +46,19 @@
             "top_hits": {
               "size": 1,
               "stored_fields": [
-                "commonEventName",
-                "cve",
-                "directionName",
-                "entityName",
-                "impactedIp",
-                "impactedPort",
-                "isEvent",
-                "logSourceName",
-                "msgClassName",
-                "msgClassTypeName",
-                "msgSourceTypeName",
+                "normalDate",
                 "priority",
+                "impactedPort",
+                "msgSourceTypeName",
+                "protocolName",
+                "originIp",
                 "severity",
-                "vendorMessageId",
-                "logSourceName",
-                "originName"
+                "msgClassName",
+                "originPort",
+                "directionName",
+                "impactedLocationName",
+                "impactedIp",
+                "logSourceName"
               ]
             }
           }

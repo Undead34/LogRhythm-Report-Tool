@@ -25,6 +25,7 @@ class ParagraphStyles(Enum):
     TEXT_ITALIC = 'Text-Italic'
     LIST = 'List'
     SUB_LIST = 'Sub-List'
+    SUB_TITLE_1 = 'Sub-Title-1'
 
 
 class FontsNames(Enum):
@@ -44,6 +45,16 @@ class CustomTableStyle:
     def __init__(self, table_style, cell_styles=None) -> None:
         self.table_style = table_style
         self.cell_styles = cell_styles or self._default_cell_styles()
+        self.left_margin = self.right_margin = 0
+        self.top_margin = self.bottom_margin = 0
+
+        self.set_margin()
+
+    def set_margin(self, left_margin: int = 2.5 * cm, right_margin: int = 2.5 * cm, top_margin: int =  2 * cm, bottom_margin: int = 2 * cm):
+        self.left_margin = left_margin
+        self.right_margin = right_margin
+        self.top_margin = top_margin
+        self.bottom_margin = bottom_margin
 
     def _default_cell_styles(self):
         styles = [
@@ -164,6 +175,18 @@ class Theme:
         styles.add(ParagraphStyle(name=ParagraphStyles.TITLE_3.value,
                                   parent=styles[ParagraphStyles.TITLE_1.value],
                                   leftIndent=0,
+                                  firstLineIndent=28.9))
+        
+        styles.add(ParagraphStyle(name=ParagraphStyles.SUB_TITLE_1.value,
+                                  fontName='Arial-Narrow-Bold',
+                                  fontSize=12,
+                                  textColor=self.colors['black'],
+                                  spaceBefore=6,
+                                  spaceAfter=6,
+                                  leftIndent=0,
+                                  # firstLineIndent=17.9,
+                                  alignment=TA_LEFT,
+                                  leading=20.7,
                                   firstLineIndent=28.9))
 
         styles.add(ParagraphStyle(name=ParagraphStyles.LIST.value,

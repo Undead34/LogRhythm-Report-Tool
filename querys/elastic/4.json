@@ -1,9 +1,11 @@
 {
-  "id": "337fb1d3-a5be-4f20-9928-f662ae002910",
-  "name": "Events in the month",
-  "description": "<Descripción de la consulta>",
+  "id": "8b47b29f-0dae-4f07-ace0-de0d138ef8ae",
+  "name": "classification_name_count",
+  "description": "Clasificación nombre recuento",
   "mode": "single",
-  "index": ["logs-*"],
+  "index": [
+    "logs-*"
+  ],
   "aggregation_result": true,
   "type": "5",
   "query": {
@@ -31,7 +33,7 @@
       }
     },
     "aggs": {
-      "msgClassName_counts": {
+      "msgclassname_counts": {
         "terms": {
           "field": "msgClassName",
           "size": 500,

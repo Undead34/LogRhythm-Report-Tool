@@ -1,0 +1,54 @@
+{
+  "id": "4f64662b-5b0c-4d50-a85f-bdb339c375f1",
+  "name": "events_histogram_by_msgclassname",
+  "description": "Realiza una búsqueda y agregación en los índices de logs para detectar los eventos de ataques más recientes, filtrando por ubicación impactada, IP impactada y tipo de mensaje.",
+  "mode": "single",
+  "index": [
+    "logs-*"
+  ],
+  "aggregation_result": true,
+  "type": "6",
+  "query": {
+    "size": 0,
+    "aggs": {
+      "msgClassNames": {
+        "terms": {
+          "field": "msgClassName",
+          "size": 10
+        },
+        "aggs": {
+          "date_histogram": {
+            "date_histogram": {
+              "field": "normalDate",
+              "interval": "1h",
+              "time_zone": "America/New_York",
+              "min_doc_count": 1
+            }
+          }
+        }
+      }
+    },
+    "query": {
+      "bool": {
+        "must": [
+          {
+            "query_string": {
+              "query": "isEvent: true AND {{entity_ids}}",
+              "analyze_wildcard": true,
+              "default_field": "*"
+            }
+          },
+          {
+            "range": {
+              "normalDate": {
+                "gte": "{{gte}}",
+                "lte": "{{lte}}",
+                "format": "epoch_millis"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

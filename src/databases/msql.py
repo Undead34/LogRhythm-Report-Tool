@@ -2,6 +2,7 @@ from datetime import datetime
 import pandas as pd
 import pyodbc
 import sys
+import os
 
 from src.utils.constants import DB_HOST, DB_USER, DB_PASS
 
@@ -196,6 +197,24 @@ class MSQLServer:
         summary.columns = ['MsgClassName', 'Count', 'Avg_TTD', 'Max_TTD', 'Avg_TTR', 'Max_TTR']
         return summary
     
+    def export_to_csv(self, directory: str) -> None:
+        if not os.path.exists(directory):
+            os.makedirs(directory, exist_ok=True)
+        
+        functions_to_export = {
+            "entities": self.get_entities,
+            "alarm_summary_by_entity_and_status": self.get_alarm_summary_by_entity_and_status,
+            "alarms_information": self.get_alarms_information,
+            "full_alarm_details": self.get_full_alarm_details,
+            "alarm_durations": self.get_alarm_durations,
+            "TTD_AND_TTR_by_alarm_priority": self.get_TTD_AND_TTR_by_alarm_priority,
+            "TTD_AND_TTR_by_msg_class_name": self.get_TTD_AND_TTR_by_msg_class_name
+        }
+        
+        for file_name, func in functions_to_export.items():
+            df = func()
+            df.to_csv(os.path.join(directory, f"{file_name}.csv"), index=False)
+
     # ==========================================
     # Private methods
     # ==========================================

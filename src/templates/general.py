@@ -8,6 +8,8 @@ from src.themes import theme
 from src.components import Bar, Cover, Line, PageBreak, Paragraph, Table, ListElement, Historigram, Spacer
 import calendar
 
+from babel.numbers import format_number
+
 if TYPE_CHECKING:
     from src.databases import MSQLServer, Package
     from src.app import Config
@@ -28,6 +30,20 @@ class GeneralTemplate:
         self.tables_styles = theme.CustomTableStyles
         self.font_names = theme.FontsNames
 
+    def get_human_readable_period(self, start_date, end_date):
+        month_translation = {
+            'January': 'enero', 'February': 'febrero', 'March': 'marzo', 'April': 'abril', 
+            'May': 'mayo', 'June': 'junio', 'July': 'julio', 'August': 'agosto', 
+            'September': 'septiembre', 'October': 'octubre', 'November': 'noviembre', 'December': 'diciembre'
+        }
+        start_month = calendar.month_name[start_date.month]
+        end_month = calendar.month_name[end_date.month]
+        start_month_es = month_translation[start_month]
+        end_month_es = month_translation[end_month]
+        start_date_str = start_date.strftime(f'%d de {start_month_es} de %Y')
+        end_date_str = end_date.strftime(f'%d de {end_month_es} de %Y')
+        return start_date_str, end_date_str
+
     def add_cover(self):
         today = self._format_date(datetime.now())
         start, end = map(self._format_date, self.config.date_range)
@@ -41,25 +57,30 @@ class GeneralTemplate:
     def add_introduction(self):
         elements = ElementList()
         elements += Paragraph("Introducción".upper(), self.style(self.paragraph_styles.TITLE_1))
-        elements += Paragraph("1. Objetivo del Informe", self.style(self.paragraph_styles.TITLE_2))
+        elements += Paragraph("1. Objetivo del Reporte", self.style(self.paragraph_styles.TITLE_2))
 
-        intro_text = """
-            **Propósito**: Proporcionar una visión detallada y automatizada del estado del Sistema de Gestión de Información y Eventos de Seguridad (SIEM), destacando los aspectos clave relacionados con la seguridad, el rendimiento y la conformidad.
-            
-            **Alcance**: Este informe cubre la actividad del SIEM durante el periodo especificado, incluyendo la identificación de atacantes, vulnerabilidades, alarmas, violaciones de cumplimiento, fallas operativas, violaciones de auditoría, detalles de logs, estadísticas de componentes y resúmenes automáticos.
-            
-            **Metodología**: Los datos presentados han sido recopilados y analizados utilizando herramientas automatizadas que integran y correlacionan información de múltiples fuentes. Los gráficos y tablas incluidos son el resultado de análisis estadísticos diseñados para resaltar tendencias significativas y puntos críticos.
-            
-            **Estructura del Informe**: El informe se divide en varias secciones clave:
-        """
-        elements += Paragraph(self.theme.replace_bold_with_font(intro_text), self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
+        intro_text =[
+            """
+            **Propósito**: Proporcionar una visión detallada y automatizada del estado del Sistema de Gestión de Información y Eventos de Seguridad (SIEM), 
+            destacando los aspectos clave relacionados con la seguridad, el rendimiento y la conformidad.
+            """,
+            """
+            **Alcance**: Este reporte cubre la actividad del SIEM durante el periodo especificado,
+              incluyendo la identificación de atacantes, vulnerabilidades, alarmas, 
+                fallas operativas, detalles de logs, estadísticas de componentes y resúmenes automáticos.
+            """,
+            """
+            **Metodología**: Los datos presentados han sido recopilados y analizados utilizando herramientas automatizadas que integran y correlacionan información de múltiples fuentes. 
+            Los gráficos y tablas incluidos son el resultado de análisis estadísticos diseñados para resaltar tendencias significativas y puntos críticos.
+            """,
+            """**Estructura del Reporte**: El reporte se divide en varias secciones clave:"""]
+    
+        elements += [Paragraph(self.theme.replace_bold_with_font(text), self.style(self.paragraph_styles.SUB_TEXT_NORMAL)) for text in intro_text]
 
         sections = [
             "**Indicadores de cumplimiento de SLA y Tiempos de Gestión**: Un análisis detallado de los indicadores de nivel de servicio (SLA) y tiempos de respuesta para la gestión de incidentes y eventos.",
             "**Análisis de Eventos**: Un desglose de los eventos capturados por el SIEM, categorizados por tipo, gravedad y fuente.",
-            "**Detección de Amenazas**: Información sobre amenazas detectadas, incluyendo atacantes identificados, métodos de ataque y medidas de mitigación implementadas.",
-            "**Conformidad y Auditoría**: Evaluación del cumplimiento de políticas de seguridad y auditorías realizadas durante el periodo.",
-            "**Recomendaciones**: Sugerencias para mejorar la postura de seguridad basada en los hallazgos del análisis."
+            "**Detección de Amenazas**: Información sobre amenazas detectadas, incluyendo atacantes identificados, métodos de ataque y medidas de mitigación implementadas."
         ]
 
         sections = [Paragraph(self.theme.replace_bold_with_font(section), self.style(self.paragraph_styles.SUB_LIST)) for section in sections]
@@ -69,18 +90,62 @@ class GeneralTemplate:
 
         return elements
 
+    # TABLES
+
     def add_ttd_ttr_by_month_table_with_description(self):
         elements = ElementList()
 
-        elements += Paragraph("Indicadores de Tiempos de Detección y Respuesta por Mes", self.style(self.paragraph_styles.TITLE_1))
+        def table():
+            # Obtener y procesar los datos
+            df = self.db.get_alarms_information()
+            df['GeneratedOn'] = pd.to_datetime(df['GeneratedOn']).dt.tz_localize(None)  # Eliminar la información de la zona horaria
+            df['Month'] = df['GeneratedOn'].dt.to_period('M')
+
+            # Filtrar valores negativos y NaN
+            df = df.dropna(subset=['TTD', 'TTR'])
+            df = df[(df['TTD'] >= 0) & (df['TTR'] >= 0)]
+
+            # Agrupar y calcular los promedios y máximos por mes
+            monthly_data = df.groupby('Month').agg(
+                Alarms=('AlarmID', 'count'),
+                Avg_TTD=('TTD', 'mean'),
+                Max_TTD=('TTD', 'max'),
+                Avg_TTR=('TTR', 'mean'),
+                Max_TTR=('TTR', 'max')
+            ).reset_index()
+
+            # Formatear tiempos en HH:MM:SS
+            def format_timedelta(seconds):
+                return str(timedelta(seconds=int(seconds))) if pd.notnull(seconds) else '00:00:00'
+
+            for col in ['Avg_TTD', 'Max_TTD', 'Avg_TTR', 'Max_TTR']:
+                monthly_data[col] = monthly_data[col].apply(format_timedelta)
+
+            # Traducir los nombres de los meses al español
+            monthly_data['Month'] = monthly_data['Month'].apply(lambda x: calendar.month_name[x.month].capitalize())
+            monthly_data['Month'] = monthly_data['Month'].replace({
+                'January': 'Enero', 'February': 'Febrero', 'March': 'Marzo', 'April': 'Abril', 
+                'May': 'Mayo', 'June': 'Junio', 'July': 'Julio', 'August': 'Agosto', 
+                'September': 'Septiembre', 'October': 'Octubre', 'November': 'Noviembre', 'December': 'Diciembre'
+            })
+
+            column_names = ['Mes', 'Nº de alarmas', 'TTD Promedio', 'TTD Máximo', 'TTR Promedio', 'TTR Máximo']
+
+            table_style = self.style(self.tables_styles.DEFAULT)
+            table_style.set_margin(self.theme.leftMargin, self.theme.rightMargin)
+            return Table(monthly_data, table_style, column_names, mode='fit-full', indent=1.2 * cm, subtract=1.2 * cm).render()
+
         elements += Paragraph(
             self.theme.replace_bold_with_font(
                 "Los tiempos de detección (TTD) y respuesta (TTR) son métricas críticas para evaluar la eficiencia y efectividad del sistema de monitoreo de seguridad. La siguiente tabla proporciona un desglose de estos indicadores por mes, permitiendo identificar áreas de mejora y resaltar buenas prácticas."
             ),
             self.style(self.paragraph_styles.SUB_TEXT_NORMAL)
         )
-
-        elements += Paragraph("Cómo Interpretar la Tabla:", self.style(self.paragraph_styles.TITLE_2))
+        
+        elements += table()
+        elements += Paragraph("Indicadores de Tiempos de Detección y Respuesta por Mes", self.style(self.paragraph_styles.TEXT_GRAPHIC))
+        
+        elements += Paragraph("Cómo Interpretar la Tabla:", self.style(self.paragraph_styles.SUB_TITLE_1))
 
         interpretation_items = [
             "**Mes**: El mes en el que se registraron los eventos.",
@@ -95,70 +160,64 @@ class GeneralTemplate:
         
         elements += Spacer(0, 1 * cm)
 
-        # Obtener y procesar los datos
-        df = self.db.get_alarms_information()
-        df['GeneratedOn'] = pd.to_datetime(df['GeneratedOn']).dt.tz_localize(None)  # Eliminar la información de la zona horaria
-        df['Month'] = df['GeneratedOn'].dt.to_period('M')
+        return elements
 
-        # Filtrar valores negativos y NaN
-        df = df.dropna(subset=['TTD', 'TTR'])
-        df = df[(df['TTD'] >= 0) & (df['TTR'] >= 0)]
+    def add_table_alarm_distribution_by_entity_and_state(self):
+        elements = ElementList()
 
-        # Agrupar y calcular los promedios y máximos por mes
-        monthly_data = df.groupby('Month').agg(
-            Alarms=('AlarmID', 'count'),
-            Avg_TTD=('TTD', 'mean'),
-            Max_TTD=('TTD', 'max'),
-            Avg_TTR=('TTR', 'mean'),
-            Max_TTR=('TTR', 'max')
-        ).reset_index()
+        # Reemplazo de fechas con los periodos reales en formato legible
+        start_date_str, end_date_str = self.get_human_readable_period(self.config.date_range[0], self.config.date_range[1])
+        total_alarms = self.db.get_alarm_count()
+        # Formatear el número total de alarmas usando Babel
+        total_alarms = format_number(total_alarms, locale='es_ES')
 
-        # Formatear tiempos en HH:MM:SS
-        def format_timedelta(seconds):
-            return str(timedelta(seconds=int(seconds))) if pd.notnull(seconds) else '00:00:00'
+        # Mejorar el texto introductorio
+        elements += Paragraph(f"""
+        Durante el periodo desde el {start_date_str} hasta el {end_date_str}, se generaron un total de {total_alarms} alarmas. 
+        A continuación, se presenta una tabla con la distribución de estas alarmas por entidad y su estado.
+        """, self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
 
-        for col in ['Avg_TTD', 'Max_TTD', 'Avg_TTR', 'Max_TTR']:
-            monthly_data[col] = monthly_data[col].apply(format_timedelta)
+        # Obtener y mostrar el resumen de alarmas por entidad y estado
+        alarm_summary = self.db.get_alarm_summary_by_entity_and_status()
+        alarm_summary_df = pd.DataFrame(alarm_summary, columns=['EntityName', 'AlarmStatus', 'AlarmCount'])
+            
+        # Mapeo de estados de alarma al español
+        english_to_spanish_status = {
+            'Unknown': 'Desconocido', 'New': 'Nuevo', 'OpenAlarm': 'Alarma Abierta', 'Working': 'Trabajando',
+            'Escalated': 'Escalado', 'AutoClosed': 'Cerrado Automáticamente', 'FalsePositive': 'Falso Positivo',
+            'Resolved': 'Resuelto', 'UnResolved': 'No Resuelto', 'Reported': 'Reportado', 'Monitor': 'Monitorear'
+        }
 
-        # Traducir los nombres de los meses al español
-        monthly_data['Month'] = monthly_data['Month'].apply(lambda x: calendar.month_name[x.month].capitalize())
-        monthly_data['Month'] = monthly_data['Month'].replace({
-            'January': 'Enero', 'February': 'Febrero', 'March': 'Marzo', 'April': 'Abril', 
-            'May': 'Mayo', 'June': 'Junio', 'July': 'Julio', 'August': 'Agosto', 
-            'September': 'Septiembre', 'October': 'Octubre', 'November': 'Noviembre', 'December': 'Diciembre'
-        })
+        # Reemplazo de estados en el DataFrame
+        alarm_summary_df['AlarmStatus'] = alarm_summary_df['AlarmStatus'].apply(
+            lambda status: english_to_spanish_status.get(status, 'Desconocido')
+        )
 
-        column_names = ['Mes', 'Nº de alarmas', 'TTD Promedio', 'TTD Máximo', 'TTR Promedio', 'TTR Máximo']
+        # Formatear los números en el DataFrame usando Babel
+        alarm_summary_df['AlarmCount'] = alarm_summary_df['AlarmCount'].apply(lambda x: format_number(x, locale='es_ES'))
 
-        elements += Table(monthly_data, self.style(self.tables_styles.DEFAULT), column_names, mode='fit-full').render()
+        # Crear una tabla para mostrar los datos
+        column_names = ['Entidad', 'Estado de la Alarma', 'Cantidad de Alarmas']
+        table_style = self.style(self.tables_styles.DEFAULT)
+        table = Table(alarm_summary_df, table_style, column_names, mode='fit-full', indent=1.2 * cm, subtract=1.2 * cm).render()
+        elements += table
+        
+        # Párrafo explicativo para la tabla de alarmas por entidad y estado
+        elements += Paragraph("Distribución de alarmas por entidad y estado.", self.style(self.paragraph_styles.TEXT_GRAPHIC))
+
+        elements += Spacer(0, 1 * cm)
 
         return elements
 
     def add_ttd_ttr_by_msgclassname_table_with_description(self):
         elements = ElementList()
 
-        elements += Paragraph("Indicadores de Tiempos de Detección y Respuesta por Clasificación", self.style(self.paragraph_styles.TITLE_1))
         elements += Paragraph(
             self.theme.replace_bold_with_font(
                 "Los tiempos de detección (TTD) y respuesta (TTR) son métricas críticas para evaluar la eficiencia y efectividad del sistema de monitoreo de seguridad. La siguiente tabla proporciona un desglose de estos indicadores por cada clasificación de mensaje, permitiendo identificar áreas de mejora y resaltar buenas prácticas."
             ),
             self.style(self.paragraph_styles.SUB_TEXT_NORMAL)
         )
-
-        elements += Paragraph("Cómo Interpretar la Tabla:", self.style(self.paragraph_styles.TITLE_2))
-
-        interpretation_items = [
-            "**Clasificación**: El tipo de mensaje o evento capturado por el SIEM.",
-            "**Nº de alarmas**: La cantidad total de alarmas registradas para cada clasificación.",
-            "**TTD Promedio**: El tiempo promedio que tomó detectar un evento desde su ocurrencia.",
-            "**TTD Máximo**: El tiempo máximo registrado para la detección de un evento.",
-            "**TTR Promedio**: El tiempo promedio que tomó responder a un evento una vez detectado.",
-            "**TTR Máximo**: El tiempo máximo registrado para responder a un evento."
-        ]
-        interpretation_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in interpretation_items]
-        elements += ListElement(interpretation_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
-
-        elements += Spacer(0, 1 * cm)
 
         # Agregar la tabla de TTD y TTR por clasificación de mensaje
         df = self.db.get_TTD_AND_TTR_by_msg_class_name()
@@ -169,9 +228,113 @@ class GeneralTemplate:
 
         column_names = ['Clasificación', 'Nº de alarmas', 'TTD Promedio', 'TTD Máximo', 'TTR Promedio', 'TTR Máximo']
 
-        elements += Table(df, self.style(self.tables_styles.DEFAULT), column_names, mode='fit-full').render()
+        elements += Table(df, self.style(self.tables_styles.DEFAULT), column_names, mode='fit-full', indent=1.2 * cm, subtract=1.2 * cm).render()
+        
+        elements += Paragraph("Indicadores de Tiempos de Detección y Respuesta por Clasificación", self.style(self.paragraph_styles.TEXT_GRAPHIC))
+
+        elements += Paragraph("Cómo Interpretar la Tabla:", self.style(self.paragraph_styles.SUB_TITLE_1))
+
+        interpretation_items = [
+            "**Clasificación**: El tipo de mensaje o evento capturado por el SIEM.",
+            "**Nº de alarmas**: La cantidad total de alarmas registradas para cada clasificación.",
+            "**TTD Promedio**: El tiempo promedio que tomó detectar un evento desde su ocurrencia.",
+            "**TTD Máximo**: El tiempo máximo registrado para la detección de un evento.",
+            "**TTR Promedio**: El tiempo promedio que tomó responder a un evento una vez detectado.",
+            "**TTR Máximo**: El tiempo máximo registrado para responder a un evento."
+        ]
+        
+        interpretation_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in interpretation_items]
+        
+        elements += ListElement(interpretation_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
+
+        elements += Spacer(0, 1 * cm)
 
         return elements
+
+    # GRAFICOS
+
+    def add_event_distribution(self):
+        elements = ElementList()
+
+        # Descripción del gráfico
+        description_text = (
+            "El gráfico siguiente muestra la distribución de eventos registrados por día. "
+            "Este análisis permite identificar patrones temporales diarios en la ocurrencia de eventos."
+        )
+        elements += Paragraph(
+            self.theme.replace_bold_with_font(description_text),
+            self.style(self.paragraph_styles.SUB_TEXT_NORMAL)
+        )
+
+        # Obtener los datos de la consulta
+        df = next(q.run() for q in self.queries if q._id == "34607e55-49ea-44d9-a152-b3d2bdbae24b")
+        df['date'] = pd.to_datetime(df['date'])
+
+        # Crear el histograma por día
+        elements += Historigram(df, "date", "count", show_legend=False, freq="1D", title="Distribución de Eventos por Día", xlabel="Días del mes", ylabel="Eventos en ese día").plot()
+        
+        elements += Paragraph("Distribución de Eventos por Día", self.style(self.paragraph_styles.TEXT_GRAPHIC))
+        elements += Paragraph("Cómo Leer el Gráfico:", self.style(self.paragraph_styles.SUB_TITLE_1))
+
+        interpretation_items = [
+            "**Eje X (Horizontal)**: Representa los días del mes.",
+            "**Eje Y (Vertical)**: Representa el número total de eventos registrados.",
+            "**Barras**: La altura de cada barra indica la cantidad de eventos ocurridos en ese día."
+        ]
+        interpretation_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in interpretation_items]
+        elements += ListElement(interpretation_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
+
+        elements += Spacer(0, 1 * cm)
+
+        return elements
+
+    def add_event_distribution_by_class(self):
+        elements = ElementList()
+
+        # Descripción del gráfico
+        description_text = (
+            "El gráfico siguiente muestra la distribución de eventos registrados por día, "
+            "según la clase de mensaje. Este análisis permite identificar patrones temporales "
+            "diarios en la ocurrencia de eventos para cada clase de mensaje."
+        )
+        elements += Paragraph(
+            self.theme.replace_bold_with_font(description_text),
+            self.style(self.paragraph_styles.SUB_TEXT_NORMAL)
+        )
+
+        # Obtener los datos de la consulta
+        df = next(q.run() for q in self.queries if q._id == "4f64662b-5b0c-4d50-a85f-bdb339c375f1")
+        df['date'] = pd.to_datetime(df['date'])
+
+        # Separar el DataFrame en múltiples DataFrames según el valor de msg_class_name
+        dataframes = {msg_class_name: group for msg_class_name, group in df.groupby('msg_class_name')}
+
+        for msg_class_name, df_group in dataframes.items():
+            # Crear el histograma por día para cada clase de mensaje
+            elements += Historigram(
+                df_group, "date", "count", show_legend=False, freq="1D",
+                title=f"Distribución de Eventos por Día - {msg_class_name}", 
+                xlabel="Días del mes", ylabel="Eventos en ese día"
+            ).plot()
+
+            elements += Paragraph(f"Distribución de Eventos por Día - {msg_class_name}", self.style(self.paragraph_styles.TEXT_GRAPHIC))
+            elements += Paragraph("Cómo Leer el Gráfico:", self.style(self.paragraph_styles.SUB_TITLE_1))
+
+            interpretation_items = [
+                "**Eje X (Horizontal)**: Representa los días del mes.",
+                "**Eje Y (Vertical)**: Representa el número total de eventos registrados.",
+                "**Barras**: La altura de cada barra indica la cantidad de eventos ocurridos en ese día."
+            ]
+            interpretation_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in interpretation_items]
+            elements += ListElement(interpretation_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
+
+            elements += Spacer(0, 1 * cm)
+
+        return elements
+
+
+
+
 
     def add_alarm_trends_with_description(self):
         elements = ElementList()
@@ -235,42 +398,6 @@ class GeneralTemplate:
 
         return elements
 
-    def add_event_distribution(self):
-        # Obtener los datos de la consulta
-        df = next(q.run() for q in self.queries if q._id == "34607e55-49ea-44d9-a152-b3d2bdbae24b")
-        df['date'] = pd.to_datetime(df['date'])
-        
-        elements = ElementList()
-
-        # Título
-        elements += Paragraph("Distribución de Eventos por Hora y por Día", self.style(self.paragraph_styles.TITLE_1))
-
-        # Descripción del gráfico
-        elements += Paragraph(
-            self.theme.replace_bold_with_font(
-                "Los siguientes gráficos muestran la distribución de eventos registrados. El primer gráfico muestra la cantidad de eventos por hora a lo largo del período analizado, mientras que el segundo gráfico muestra la cantidad de eventos por día. Estos análisis permiten identificar patrones temporales tanto diarios como horarios en la ocurrencia de eventos."
-            ),
-            self.style(self.paragraph_styles.SUB_TEXT_NORMAL)
-        )
-
-        # Cómo leer los gráficos
-        elements += Paragraph("Cómo Leer los Gráficos:", self.style(self.paragraph_styles.TITLE_2))
-
-        interpretation_items = [
-            "**Eje X (Horizontal)**: En el primer gráfico, representa las horas del día, desde las 00:00 hasta las 23:00. En el segundo gráfico, representa los días del mes.",
-            "**Eje Y (Vertical)**: Representa el número total de eventos registrados.",
-            "**Barras**: La altura de cada barra indica la cantidad de eventos ocurridos en esa hora (primer gráfico) o en ese día (segundo gráfico)."
-        ]
-        interpretation_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in interpretation_items]
-        elements += ListElement(interpretation_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
-
-        # Crear el histograma por hora
-        elements += Historigram(df, "date", 'count', show_legend=False, freq="1h", title="Distribución de Eventos por Hora").plot()
-        # Crear el histograma por día
-        elements += Historigram(df, "date", 'count', show_legend=False, freq="1D", title="Distribución de Eventos por Día").plot()
-
-        return elements
-    
     def add_top_alarms(self):
         elements = ElementList()
         elements += Paragraph("Top Alarmas", self.style(self.paragraph_styles.TITLE_1))
@@ -291,20 +418,29 @@ class GeneralTemplate:
         return elements
 
     def run(self):
+        # Agregar portada e introducción
         self.elements += self.add_cover()
         self.elements += self.add_introduction()
 
-        self.elements += Paragraph(self.theme.replace_bold_with_font("Indicadores de cumplimiento de SLA y Tiempos de Gestión").upper(), self.style(self.paragraph_styles.TITLE_1))
+        # Título de la sección de contenido
+        self.elements += Paragraph(self.theme.replace_bold_with_font("Contenido").upper(), self.style(self.paragraph_styles.TITLE_1))
+        self.elements += Paragraph("1. Indicadores de cumplimiento de SLA y Tiempos de Gestión", self.style(self.paragraph_styles.TITLE_2))
+
+        # # Agregar otras secciones y KPIs
+        self.elements += self.add_table_alarm_distribution_by_entity_and_state()
         self.elements += self.add_ttd_ttr_by_month_table_with_description()
         self.elements += self.add_ttd_ttr_by_msgclassname_table_with_description()
-        self.elements += self.add_alarm_trends_with_description()
+
         self.elements += self.add_event_distribution()
-        self.elements += self.add_top_alarms()
+        self.elements += self.add_event_distribution_by_class()
 
-        df = next(q.run() for q in self.queries if q._id == "337fb1d3-a5be-4f20-9928-f662ae002910")
-        chart = Bar(df, x_col='key', y_col='doc_count', title='Distribución de Eventos por Categoría', orientation='horizontal', show_legend=False, axis_labels=True)
-        self.elements += chart.plot()
+        # self.elements += self.add_alarm_trends_with_description()
+        # self.elements += self.add_top_alarms()
 
+        # Agregar gráfico de distribución de eventos por categoría
+        # df = next(q.run() for q in self.queries if q._id == "337fb1d3-a5be-4f20-9928-f662ae002910")
+        # chart = Bar(df, x_col='key', y_col='doc_count', title='Distribución de Eventos por Categoría', orientation='horizontal', show_legend=False, axis_labels=True)
+        # self.elements += chart.plot()
 
 
     def plot_priority_levels(self):

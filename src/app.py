@@ -31,7 +31,7 @@ class Config:
         config = Config()
 
         # Modo debug: usar valores predefinidos
-        start, end = datetime(2024, 6, 24), datetime(2024, 7, 1)
+        start, end = datetime(2024, 7, 1), datetime(2024, 7, 18)
         entities = pd.DataFrame(data={'EntityID': [4], 'FullName': ['Farmatodo']})
         signature = DEFAULT_SIGNATURE.copy()
         client_name, client_logo = 'Farmatodo', './assets/images/clients/farmatodo/logo.png'
@@ -125,6 +125,10 @@ def run_main_program(args, config: Config):
     # Cargar las consultas desde un archivo
     logger.info("Cargando las consultas desde el archivo...")
     queries = elastic.load_queries("./querys/elastic")
+    
+    if args.export:
+        elastic.export_to_csv("./querys/elastic", "./output/csv")
+        database.export_to_csv("./output/csv")
 
     signature = config.signature
 
@@ -133,6 +137,7 @@ def run_main_program(args, config: Config):
     # Generate Report
     logger.info("Generando el reporte...")
     
+
     report = skeleton.Report(config.output_file)
     templates = Templates(report, queries, database, signature, config)
 

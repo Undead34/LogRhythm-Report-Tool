@@ -23,6 +23,7 @@ class Table:
                  mode: str = 'auto', 
                  padding: int = 12, 
                  indent: int = 0,
+                 subtract: int = 0,
                  include_totals: bool = False, 
                  totals_columns: Optional[List[int]] = None,
                  max_width: Optional[int] = None, 
@@ -40,6 +41,7 @@ class Table:
         self.min_width = min_width
         self.truncate_text = truncate_text
         self.truncate_length = truncate_length
+        self.subtract = subtract
         self.style = style or Theme().get_style(CustomTableStyles.DEFAULT)
 
         self.validate()
@@ -60,7 +62,7 @@ class Table:
             return []
 
         rows, cols = len(data), len(data[0])
-        usable_width = LETTER[0] - 5 * cm  # assuming left and right margin combined to be 5 cm
+        usable_width = LETTER[0] - self.style.left_margin - self.style.right_margin - self.subtract
 
         def calculate_column_widths(data, styles, padding):
             return [
@@ -117,8 +119,8 @@ class Table:
 
         table = RLTable(table_data, colWidths=col_widths)
         table.setStyle(self.style.table_style)
-
-        return [Indenter(left=self.indent), table]
+        
+        return [Indenter(left=self.indent), table, Indenter(left=self.indent * -1)]
 
     def _create_rows(self) -> List[Row]:
         header_cells = [Cell(name) for name in self.column_names]

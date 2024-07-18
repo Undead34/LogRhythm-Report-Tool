@@ -11,6 +11,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--config-file', type=str, help='Ruta al archivo de configuración')
     parser.add_argument('-d', '--debug', action='store_true', help='Activar modo debug')
     parser.add_argument('-v', '--verbose', action='store_true', help='Activar salida detallada')
+    parser.add_argument('-e', '--export', action='store_true', help='Activar salida csv')
     
     if not len(sys.argv) > 1:
         parser.print_help()
