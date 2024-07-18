@@ -157,8 +157,6 @@ class MSQLServer:
         FROM LogRhythm_Alarms.dbo.vw_LatestAlarms
         WHERE EntityID IN ({entity_ids_str})
           AND DateInserted BETWEEN '{self._start_date}' AND '{self._end_date}'
-          AND GeneratedOn IS NOT NULL
-          AND InvestigatedOn IS NOT NULL
         """
         df = self._execute_query(sql).copy()
         
@@ -166,9 +164,6 @@ class MSQLServer:
             -1: 'Unknown', 0: 'New', 1: 'OpenAlarm', 2: 'Working', 3: 'Escalated', 4: 'AutoClosed', 
             5: 'FalsePositive', 6: 'Resolved', 7: 'UnResolved', 8: 'Reported', 9: 'Monitor'
         })
-        
-        # Filtrar registros con TTD y TTR negativos
-        df = df[(df['TTD'] >= 0) & (df['TTR'] >= 0)]
         
         return df
     

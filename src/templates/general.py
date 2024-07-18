@@ -92,76 +92,6 @@ class GeneralTemplate:
 
     # TABLES
 
-    def add_ttd_ttr_by_month_table_with_description(self):
-        elements = ElementList()
-
-        def table():
-            # Obtener y procesar los datos
-            df = self.db.get_alarms_information()
-            df['GeneratedOn'] = pd.to_datetime(df['GeneratedOn']).dt.tz_localize(None)  # Eliminar la información de la zona horaria
-            df['Month'] = df['GeneratedOn'].dt.to_period('M')
-
-            # Filtrar valores negativos y NaN
-            df = df.dropna(subset=['TTD', 'TTR'])
-            df = df[(df['TTD'] >= 0) & (df['TTR'] >= 0)]
-
-            # Agrupar y calcular los promedios y máximos por mes
-            monthly_data = df.groupby('Month').agg(
-                Alarms=('AlarmID', 'count'),
-                Avg_TTD=('TTD', 'mean'),
-                Max_TTD=('TTD', 'max'),
-                Avg_TTR=('TTR', 'mean'),
-                Max_TTR=('TTR', 'max')
-            ).reset_index()
-
-            # Formatear tiempos en HH:MM:SS
-            def format_timedelta(seconds):
-                return str(timedelta(seconds=int(seconds))) if pd.notnull(seconds) else '00:00:00'
-
-            for col in ['Avg_TTD', 'Max_TTD', 'Avg_TTR', 'Max_TTR']:
-                monthly_data[col] = monthly_data[col].apply(format_timedelta)
-
-            # Traducir los nombres de los meses al español
-            monthly_data['Month'] = monthly_data['Month'].apply(lambda x: calendar.month_name[x.month].capitalize())
-            monthly_data['Month'] = monthly_data['Month'].replace({
-                'January': 'Enero', 'February': 'Febrero', 'March': 'Marzo', 'April': 'Abril', 
-                'May': 'Mayo', 'June': 'Junio', 'July': 'Julio', 'August': 'Agosto', 
-                'September': 'Septiembre', 'October': 'Octubre', 'November': 'Noviembre', 'December': 'Diciembre'
-            })
-
-            column_names = ['Mes', 'Nº de alarmas', 'TTD Promedio', 'TTD Máximo', 'TTR Promedio', 'TTR Máximo']
-
-            table_style = self.style(self.tables_styles.DEFAULT)
-            table_style.set_margin(self.theme.leftMargin, self.theme.rightMargin)
-            return Table(monthly_data, table_style, column_names, mode='fit-full', indent=1.2 * cm, subtract=1.2 * cm).render()
-
-        elements += Paragraph(
-            self.theme.replace_bold_with_font(
-                "Los tiempos de detección (TTD) y respuesta (TTR) son métricas críticas para evaluar la eficiencia y efectividad del sistema de monitoreo de seguridad. La siguiente tabla proporciona un desglose de estos indicadores por mes, permitiendo identificar áreas de mejora y resaltar buenas prácticas."
-            ),
-            self.style(self.paragraph_styles.SUB_TEXT_NORMAL)
-        )
-        
-        elements += table()
-        elements += Paragraph("Indicadores de Tiempos de Detección y Respuesta por Mes", self.style(self.paragraph_styles.TEXT_GRAPHIC))
-        
-        elements += Paragraph("Cómo Interpretar la Tabla:", self.style(self.paragraph_styles.SUB_TITLE_1))
-
-        interpretation_items = [
-            "**Mes**: El mes en el que se registraron los eventos.",
-            "**Nº de alarmas**: La cantidad total de alarmas registradas en cada mes.",
-            "**TTD Promedio**: El tiempo promedio que tomó detectar un evento desde su ocurrencia.",
-            "**TTD Máximo**: El tiempo máximo registrado para la detección de un evento.",
-            "**TTR Promedio**: El tiempo promedio que tomó responder a un evento una vez detectado.",
-            "**TTR Máximo**: El tiempo máximo registrado para responder a un evento."
-        ]
-        interpretation_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in interpretation_items]
-        elements += ListElement(interpretation_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
-        
-        elements += Spacer(0, 1 * cm)
-
-        return elements
-
     def add_table_alarm_distribution_by_entity_and_state(self):
         elements = ElementList()
 
@@ -172,10 +102,10 @@ class GeneralTemplate:
         total_alarms = format_number(total_alarms, locale='es_ES')
 
         # Mejorar el texto introductorio
-        elements += Paragraph(f"""
-        Durante el periodo desde el {start_date_str} hasta el {end_date_str}, se generaron un total de {total_alarms} alarmas. 
+        elements += Paragraph(self.theme.replace_bold_with_font(f"""
+        Durante el periodo desde el {start_date_str} hasta el {end_date_str}, se generaron un total de **{total_alarms}** alarmas. 
         A continuación, se presenta una tabla con la distribución de estas alarmas por entidad y su estado.
-        """, self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
+        """), self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
 
         # Obtener y mostrar el resumen de alarmas por entidad y estado
         alarm_summary = self.db.get_alarm_summary_by_entity_and_status()
@@ -209,26 +139,127 @@ class GeneralTemplate:
 
         return elements
 
+    def add_ttd_ttr_by_month_table_with_description(self):
+        elements = ElementList()
+
+        # Obtener y procesar los datos
+        df = self.db.get_alarms_information()
+        df['GeneratedOn'] = pd.to_datetime(df['GeneratedOn']).dt.tz_localize(None)  # Eliminar la información de la zona horaria
+        df['Month'] = df['GeneratedOn'].dt.to_period('M')
+
+        # Contar valores iniciales
+        initial_count = df.shape[0]
+
+        # Filtrar valores negativos y NaN
+        df = df.dropna(subset=['TTD', 'TTR'])
+        df = df[(df['TTD'] >= 0) & (df['TTR'] >= 0)]
+
+        # Contar valores finales
+        final_count = df.shape[0]
+
+        # Calcular valores eliminados totales
+        total_removed = initial_count - final_count
+
+        # Agrupar y calcular los promedios y máximos por mes
+        monthly_data = df.groupby('Month').agg(
+            Alarms=('AlarmID', 'count'),
+            Avg_TTD=('TTD', 'mean'),
+            Max_TTD=('TTD', 'max'),
+            Avg_TTR=('TTR', 'mean'),
+            Max_TTR=('TTR', 'max')
+        ).reset_index()
+
+        # Formatear tiempos en HH:MM:SS
+        def format_timedelta(seconds):
+            return str(timedelta(seconds=int(seconds))) if pd.notnull(seconds) else '00:00:00'
+
+        for col in ['Avg_TTD', 'Max_TTD', 'Avg_TTR', 'Max_TTR']:
+            monthly_data[col] = monthly_data[col].apply(format_timedelta)
+
+        # Traducir los nombres de los meses al español
+        monthly_data['Month'] = monthly_data['Month'].apply(lambda x: calendar.month_name[x.month].capitalize())
+        monthly_data['Month'] = monthly_data['Month'].replace({
+            'January': 'Enero', 'February': 'Febrero', 'March': 'Marzo', 'April': 'Abril', 
+            'May': 'Mayo', 'June': 'Junio', 'July': 'Julio', 'August': 'Agosto', 
+            'September': 'Septiembre', 'October': 'Octubre', 'November': 'Noviembre', 'December': 'Diciembre'
+        })
+
+        column_names = ['Mes', 'Nº de alarmas', 'TTD Promedio', 'TTD Máximo', 'TTR Promedio', 'TTR Máximo']
+
+        table_style = self.style(self.tables_styles.DEFAULT)
+        table_style.set_margin(self.theme.leftMargin, self.theme.rightMargin)
+
+        elements += Paragraph(
+            self.theme.replace_bold_with_font(
+                "Los tiempos de detección (TTD) y respuesta (TTR) son métricas críticas para evaluar la eficiencia y efectividad del sistema de monitoreo de seguridad. La siguiente tabla proporciona un desglose de estos indicadores por mes, permitiendo identificar áreas de mejora y resaltar buenas prácticas."
+            ),
+            self.style(self.paragraph_styles.SUB_TEXT_NORMAL)
+        )
+        
+        elements += Table(monthly_data, table_style, column_names, mode='fit-full', indent=1.2 * cm, subtract=1.2 * cm).render()
+
+        elements += Paragraph("Indicadores de Tiempos de Detección y Respuesta por Mes", self.style(self.paragraph_styles.TEXT_GRAPHIC))
+        
+        elements += Paragraph("Cómo Interpretar la Tabla:", self.style(self.paragraph_styles.SUB_TITLE_1))
+
+        interpretation_items = [
+            "**Mes**: El mes en el que se registraron los eventos.",
+            "**Nº de alarmas**: La cantidad total de alarmas registradas en cada mes.",
+            "**TTD Promedio**: El tiempo promedio que tomó detectar un evento desde su ocurrencia.",
+            "**TTD Máximo**: El tiempo máximo registrado para la detección de un evento.",
+            "**TTR Promedio**: El tiempo promedio que tomó responder a un evento una vez detectado.",
+            "**TTR Máximo**: El tiempo máximo registrado para responder a un evento."
+        ]
+        interpretation_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in interpretation_items]
+        elements += ListElement(interpretation_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
+
+        if total_removed > 0:
+            elements += Paragraph(
+                self.theme.replace_bold_with_font(
+                    f"**Nota**: Durante el proceso de análisis, se identificaron registros con datos faltantes o valores negativos en los tiempos de detección (TTD) o respuesta (TTR). "
+                    f"De un total inicial de **{format_number(initial_count, locale='es_ES')}** alarmas, **{format_number(total_removed, locale='es_ES')}** registros no fueron considerados para los cálculos debido a estos problemas, resultando en un total final de **{format_number(final_count, locale='es_ES')}** alarmas válidas. "
+                    "Esta limpieza de datos es necesaria para asegurar la precisión y fiabilidad de las métricas presentadas."
+                ),
+                self.style(self.paragraph_styles.SUB_TEXT_NORMAL)
+            )
+
+        elements += Spacer(0, 1 * cm)
+
+        return elements
+
     def add_ttd_ttr_by_msgclassname_table_with_description(self):
         elements = ElementList()
 
         elements += Paragraph(
             self.theme.replace_bold_with_font(
-                "Los tiempos de detección (TTD) y respuesta (TTR) son métricas críticas para evaluar la eficiencia y efectividad del sistema de monitoreo de seguridad. La siguiente tabla proporciona un desglose de estos indicadores por cada clasificación de mensaje, permitiendo identificar áreas de mejora y resaltar buenas prácticas."
+                "Los tiempos de detección (TTD) y respuesta (TTR) son métricas esenciales para evaluar la eficiencia del sistema de monitoreo de seguridad. La siguiente tabla muestra estos indicadores desglosados por clasificación, permitiendo identificar áreas de mejora y destacar buenas prácticas."
             ),
             self.style(self.paragraph_styles.SUB_TEXT_NORMAL)
         )
 
-        # Agregar la tabla de TTD y TTR por clasificación de mensaje
+        # Obtener y procesar los datos
         df = self.db.get_TTD_AND_TTR_by_msg_class_name()
+
+        # Contar valores iniciales
+        initial_count = df['Count'].sum()
+
+        # Filtrar valores negativos y NaN
+        df_filtered = df.dropna(subset=['Avg_TTD', 'Avg_TTR'])
+        df_filtered = df_filtered[(df_filtered['Avg_TTD'] >= 0) & (df_filtered['Avg_TTR'] >= 0)]
+
+        # Contar valores finales
+        final_count = df_filtered['Count'].sum()
+
+        # Calcular valores eliminados totales
+        total_removed = initial_count - final_count
 
         # Formatear tiempos en HH:MM:SS
         for col in ['Avg_TTD', 'Max_TTD', 'Avg_TTR', 'Max_TTR']:
-            df[col] = df[col].apply(lambda x: str(timedelta(seconds=int(x))) if pd.notnull(x) else '00:00:00')
+            df_filtered[col] = df_filtered[col].apply(lambda x: str(timedelta(seconds=int(x))) if pd.notnull(x) else '00:00:00')
 
         column_names = ['Clasificación', 'Nº de alarmas', 'TTD Promedio', 'TTD Máximo', 'TTR Promedio', 'TTR Máximo']
 
-        elements += Table(df, self.style(self.tables_styles.DEFAULT), column_names, mode='fit-full', indent=1.2 * cm, subtract=1.2 * cm).render()
+        elements += Table(df_filtered, self.style(self.tables_styles.DEFAULT), column_names, mode='fit-full', indent=1.2 * cm, subtract=1.2 * cm).render()
         
         elements += Paragraph("Indicadores de Tiempos de Detección y Respuesta por Clasificación", self.style(self.paragraph_styles.TEXT_GRAPHIC))
 
@@ -247,9 +278,20 @@ class GeneralTemplate:
         
         elements += ListElement(interpretation_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
 
+        if total_removed > 0:
+            elements += Paragraph(
+                self.theme.replace_bold_with_font(
+                    f"**Nota**: Durante el análisis, se encontraron registros con datos faltantes o valores negativos en los tiempos de detección (TTD) o respuesta (TTR). "
+                    f"De un total inicial de **{format_number(initial_count, locale='es_ES')}** alarmas, **{format_number(total_removed, locale='es_ES')}** registros no se tomaron en cuenta para los cálculos debido a estos problemas, resultando en un total final de **{format_number(final_count, locale='es_ES')}** alarmas válidas. "
+                    "Este filtrado es necesario para asegurar la precisión y fiabilidad de las métricas presentadas."
+                ),
+                self.style(self.paragraph_styles.SUB_TEXT_NORMAL)
+            )
+
         elements += Spacer(0, 1 * cm)
 
         return elements
+
 
     # GRAFICOS
 
@@ -331,10 +373,6 @@ class GeneralTemplate:
             elements += Spacer(0, 1 * cm)
 
         return elements
-
-
-
-
 
     def add_alarm_trends_with_description(self):
         elements = ElementList()
