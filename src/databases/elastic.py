@@ -6,6 +6,8 @@ import pandas as pd
 from datetime import datetime
 from elasticsearch import Elasticsearch
 
+from src.utils.logger import get_logger
+
 class Elastic:
     def __init__(self, host: str = "http://localhost:9200", timeout: int = 30, max_retries: int = 10, retry_on_timeout: bool = True) -> None:
         self._es = Elasticsearch(
@@ -16,6 +18,7 @@ class Elastic:
         )
         self._date_range = None
         self._entity_ids = None
+        self.logger = get_logger()
     
     def set_date_range(self, start_date: datetime, end_date: datetime) -> None:
         self._date_range = (start_date, end_date)
@@ -26,15 +29,15 @@ class Elastic:
         self._entity_ids = entity_ids
 
     def export_to_csv(self, directory: str, output: str) -> None:
-        if not os.path.exists(directory):
-            os.makedirs(directory, True)
+        if not os.path.exists(output):
+            os.makedirs(output, True)
         
         queries = self.load_queries(directory)
         for query in queries:
             df = query.run()
             if not df.empty:
-                print(f"Exportando {query._name}")
-                file_name = f"{query._name}.csv"
+                self.logger.info(f"Exportando {query._name}")
+                file_name = f"{query._name}_elastic.csv"
                 df.to_csv(os.path.join(output, file_name), index=False)
 
     def load_queries(self, folder: str) -> list['Package']:
@@ -47,13 +50,13 @@ class Elastic:
         for file in json_files:
             data = self._load_json_file(file)
             if not self._is_valid_data(data):
-                print(f"Formato de datos no reconocido en el archivo {file}.")
+                self.logger.warn(f"Formato de datos no reconocido en el archivo {file}.")
                 continue
             try:
                 data['query'] = self._process_query_by_type(data, date_range)
                 queries.append(Package(self, data))
             except KeyError as e:
-                print(f"Error al procesar el archivo {file}: {e}")
+                self.logger.error(f"Error al procesar el archivo {file}: {e}")
         
         return queries
 
@@ -81,7 +84,7 @@ class Elastic:
             with open(file, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError) as e:
-            print(f"Error al procesar el archivo {file}: {e}")
+            self.logger.error(f"Error al procesar el archivo {file}: {e}")
             return {}
 
     def _is_valid_data(self, data: dict) -> bool:
@@ -154,8 +157,8 @@ class Elastic:
         query_str = json.dumps(data['query'])
         query_str = query_str.replace('{{gte}}', str(date_range['gte'])).replace('{{lte}}', str(date_range['lte']))
 
-        entity_ids_str = " AND ".join([f"entityId:{id}" for id in self._entity_ids['EntityID']])
-        query_str = query_str.replace('{{entity_ids}}', entity_ids_str)
+        entity_ids_str = " OR ".join([str(id) for id in self._entity_ids['EntityID']])
+        query_str = query_str.replace('{{entity_ids}}', f'entityId: ({entity_ids_str})')
 
         return self._load_json_str(query_str)
 
@@ -164,8 +167,8 @@ class Elastic:
         try:
             return json.loads(json_str)
         except json.JSONDecodeError as e:
-            print("Error al decodificar JSON:", e)
-            print("Query string con error:", json_str)
+            self.logger.error("Error al decodificar JSON:", e)
+            self.logger.error("Query string con error:", json_str)
             raise
 
 class Package:

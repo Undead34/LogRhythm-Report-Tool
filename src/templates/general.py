@@ -239,7 +239,10 @@ class GeneralTemplate:
 
         # Obtener y procesar los datos
         df = self.db.get_TTD_AND_TTR_by_msg_class_name()
-
+        
+        if df.empty:
+            return []
+        
         # Contar valores iniciales
         initial_count = df['Count'].sum()
 
@@ -307,6 +310,9 @@ class GeneralTemplate:
 
         # Obtener los datos de la consulta
         df = next(q.run() for q in self.queries if q._id == "34607e55-49ea-44d9-a152-b3d2bdbae24b")
+        if df.empty:
+            return []
+
         df['date'] = pd.to_datetime(df['date'])
 
         # Crear el histograma por día
@@ -343,6 +349,10 @@ class GeneralTemplate:
 
         # Obtener los datos de la consulta
         df = next(q.run() for q in self.queries if q._id == "a3c7a3dc-5979-4a57-978d-d3c294a8af26")
+        
+        if df.empty:
+            return []
+        
         df['date'] = pd.to_datetime(df['date'])
 
         def categorize_priority(priority):
@@ -404,6 +414,8 @@ class GeneralTemplate:
 
         # Obtener los datos de la consulta
         df = next(q.run() for q in self.queries if q._id == "4f64662b-5b0c-4d50-a85f-bdb339c375f1")
+        if df.empty:
+            return []
         df['date'] = pd.to_datetime(df['date'])
 
         # Separar el DataFrame en múltiples DataFrames según el valor de msg_class_name
@@ -437,6 +449,10 @@ class GeneralTemplate:
 
         # Obtener y procesar los datos
         df = self.db.get_alarms_information()
+        
+        if df.empty:
+            return []
+        
         df['AlarmDate'] = pd.to_datetime(df['AlarmDate'])
 
         # Obtener entidades y mapear EntityID a Name
@@ -480,34 +496,6 @@ class GeneralTemplate:
 
         return elements
 
-    def run(self):
-        # Agregar portada e introducción
-        self.elements += self.add_cover()
-        self.elements += self.add_introduction()
-
-        # Sección de Indicadores de cumplimiento de SLA y Tiempos de Gestión
-        self.elements += Paragraph(self.theme.replace_bold_with_font("Contenido").upper(), self.style(self.paragraph_styles.TITLE_1))
-        self.elements += Paragraph("1. Indicadores de cumplimiento de SLA y Tiempos de Gestión", self.style(self.paragraph_styles.TITLE_2))
-
-        # self.elements += self.add_table_alarm_distribution_by_entity_and_state()
-        # self.elements += self.add_ttd_ttr_by_month_table_with_description()
-        # self.elements += self.add_ttd_ttr_by_msgclassname_table_with_description()
-
-        # Sección de Análisis de Eventos
-        self.elements += Paragraph("2. Análisis de Eventos", self.style(self.paragraph_styles.TITLE_2))
-
-        # self.elements += self.add_event_distribution()
-        # self.elements += self.add_event_distribution_by_priority()
-        # self.elements += self.add_event_distribution_by_class()
-
-        # Sección de Análisis de Alarmas
-        self.elements += Paragraph("3. Análisis de Alarmas", self.style(self.paragraph_styles.TITLE_2))
-
-        self.elements += self.add_alarm_status_table()
-        self.elements += self.add_alarm_trends_with_description()
-        self.elements += self.add_top_alarms()
-
-
     def add_alarm_trends_with_description(self):
         elements = ElementList()
 
@@ -533,6 +521,10 @@ class GeneralTemplate:
 
         # Gráfico completo
         full_figure = self._alarm_activation_line_graph(chunk=True)
+
+        if len(full_figure) == 0:
+            return []
+
         elements += full_figure
         full_description = Paragraph(
             self.theme.replace_bold_with_font(
@@ -570,9 +562,36 @@ class GeneralTemplate:
 
         return elements
 
+    def run(self):
+        # Agregar portada e introducción
+        self.elements += self.add_cover()
+        self.elements += self.add_introduction()
+
+        # Sección de Indicadores de cumplimiento de SLA y Tiempos de Gestión
+        self.elements += Paragraph(self.theme.replace_bold_with_font("Contenido").upper(), self.style(self.paragraph_styles.TITLE_1))
+        self.elements += Paragraph("1. Indicadores de cumplimiento de SLA y Tiempos de Gestión", self.style(self.paragraph_styles.TITLE_2))
+
+        self.elements += self.add_table_alarm_distribution_by_entity_and_state()
+        self.elements += self.add_ttd_ttr_by_month_table_with_description()
+        self.elements += self.add_ttd_ttr_by_msgclassname_table_with_description()
+
+        # Sección de Análisis de Eventos
+        self.elements += Paragraph("2. Análisis de Eventos", self.style(self.paragraph_styles.TITLE_2))
+
+        self.elements += self.add_event_distribution()
+        self.elements += self.add_event_distribution_by_priority()
+        self.elements += self.add_event_distribution_by_class()
+
+        # Sección de Análisis de Alarmas
+        self.elements += Paragraph("3. Análisis de Alarmas", self.style(self.paragraph_styles.TITLE_2))
+
+        self.elements += self.add_alarm_status_table()
+        self.elements += self.add_alarm_trends_with_description()
+        self.elements += self.add_top_alarms()
+
+
     def add_top_alarms(self):
         elements = ElementList()
-        elements += Paragraph("Top Alarmas", self.style(self.paragraph_styles.TITLE_1))
         elements += Paragraph(
             self.theme.replace_bold_with_font(
                 "El siguiente gráfico muestra el top 10 alarmas registradas, ordenadas por la cantidad de veces que se activaron."
@@ -581,11 +600,14 @@ class GeneralTemplate:
         )
 
         df = self.db.get_alarms_information()
+        if df.empty:
+            return []
+
         df = df.groupby('AlarmRuleName', observed=False).size().reset_index(name='Count')
         df = df.sort_values(by='Count', ascending=False)
 
-        bar = Bar(df.head(10), x_col='AlarmRuleName', y_col='Count', show_xticks=False, show_legend=True)
-        elements += bar.plot()
+        elements += Bar(df.head(10), x_col='AlarmRuleName', y_col='Count', show_xticks=False, show_legend=True, xlabel="Nombre de la alarma", ylabel="Número de activaciones").plot()
+        elements += Paragraph("Top 10 alarmas que más se activan", self.style(self.paragraph_styles.TEXT_GRAPHIC))
 
         return elements
 
@@ -630,6 +652,10 @@ class GeneralTemplate:
 
     def _alarm_activation_line_graph(self, chunk: bool = False):
         df = self.db.get_alarms_information()
+        
+        if df.empty:
+            return []
+        
         df['AlarmDate'] = pd.to_datetime(df['AlarmDate']).dt.floor('d')
         df = df.groupby(['AlarmDate', 'AlarmRuleName', 'AlarmPriority'], observed=False).size().reset_index(name='Counts')
 

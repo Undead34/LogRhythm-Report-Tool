@@ -12,6 +12,7 @@ if sys.version_info < (3, 10):
     sys.exit(1)
 
 def main():
+    # sys.argv.append("-devi")
     args = parse_arguments()
     logger = configure_logger(args.debug, args.verbose)
     # Configuración por defecto (modo debug)

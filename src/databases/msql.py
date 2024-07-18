@@ -5,6 +5,7 @@ import sys
 import os
 
 from src.utils.constants import DB_HOST, DB_USER, DB_PASS
+from src.utils.logger import get_logger
 
 class MSQLServer:
     def __init__(self) -> None:
@@ -14,7 +15,7 @@ class MSQLServer:
 
         self._start_date: str | None = None
         self._end_date: str | None = None
-
+        self.logger = get_logger()
         self._cache = {}
 
     @staticmethod
@@ -207,6 +208,7 @@ class MSQLServer:
         }
         
         for file_name, func in functions_to_export.items():
+            self.logger.info(f"Exportando {file_name}")
             df = func()
             df.to_csv(os.path.join(directory, f"{file_name}.csv"), index=False)
 

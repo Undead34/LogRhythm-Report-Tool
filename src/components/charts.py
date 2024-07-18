@@ -40,7 +40,7 @@ class BaseChart():
             return base_colors + additional_colors
 
 class Bar(BaseChart):
-    def __init__(self, df: pd.DataFrame, x_col: str, y_col: str, title: Optional[str] = None, orientation: str = "vertical", show_xticks: bool = True, show_legend: bool = True, legend_title: str = "Categories", axis_labels: bool = True) -> None:
+    def __init__(self, df: pd.DataFrame, x_col: str, y_col: str, title: Optional[str] = None, orientation: str = "vertical", show_xticks: bool = True, show_legend: bool = True, legend_title: str = "Categories", axis_labels: bool = True, xlabel = "", ylabel = "") -> None:
         super().__init__()
 
         # Formatear los nombres en el eje y con los conteos
@@ -52,13 +52,13 @@ class Bar(BaseChart):
         if orientation == "horizontal":
             bars = plt.barh(df[x_col], df[y_col], color=colors)
             if axis_labels:
-                plt.xlabel(y_col)
-                plt.ylabel(x_col)
+                plt.xlabel(ylabel if ylabel != "" else y_col)
+                plt.ylabel(xlabel if xlabel != "" else xlabel)
         else:
             bars = plt.bar(df[x_col], df[y_col], color=colors)
             if axis_labels:
-                plt.xlabel(x_col)
-                plt.ylabel(y_col)
+                plt.xlabel(xlabel if xlabel != "" else xlabel)
+                plt.ylabel(ylabel if ylabel != "" else y_col)
             if not show_xticks:
                 plt.xticks([])
         
