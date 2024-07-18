@@ -71,7 +71,6 @@ class Bar(BaseChart):
         
         plt.tight_layout()
 
-
 class Line(BaseChart):
     def __init__(self, df: pd.DataFrame, x_col: str, y_col: str, title: Optional[str] = None, category_col: Optional[str] = None, show_legend: bool = True, show_max_annotate: bool = True, axis_labels: bool = True) -> None:
         super().__init__()
@@ -82,10 +81,12 @@ class Line(BaseChart):
 
         if category_col:
             for i, (name, group) in enumerate(df.groupby(category_col)):
-                plt.plot(group[x_col], group[y_col], label=f"{name}", color=colors[i % len(colors)])
+                # Formatear los nombres en la leyenda con los conteos
+                formatted_name = f"{name} ({format_number(group[y_col].sum(), locale='es_ES')})"
+                plt.plot(group[x_col], group[y_col], label=formatted_name, color=colors[i % len(colors)])
                 
                 # Agregar anotación y línea vertical si el grupo tiene solo un evento
-                if group['Counts'].sum() == 1:
+                if group[y_col].sum() == 1:
                     event_date = group[x_col].iloc[0]
                     plt.axvline(x=event_date, color=colors[i % len(colors)], linestyle='--')
 
@@ -95,10 +96,10 @@ class Line(BaseChart):
                     max_date = group[x_col][group[y_col].idxmax()]
                     plt.annotate(f'Max: {max_count}', (max_date, max_count), textcoords="offset points", xytext=(0, random.randint(0, 12)), ha='center', color=colors[i % len(colors)])
         else:
-            plt.bar(df[x_col], df[y_col], color=colors[0])
+            plt.plot(df[x_col], df[y_col], color=colors[0])
             
             # Agregar anotación y línea vertical si el total de eventos es 1
-            if df['Counts'].sum() == 1:
+            if df[y_col].sum() == 1:
                 event_date = df[x_col].iloc[0]
                 plt.axvline(x=event_date, color=colors[0], linestyle='--')
             
@@ -109,7 +110,7 @@ class Line(BaseChart):
                 plt.annotate(f'Max: {max_count}', (max_date, max_count), textcoords="offset points", xytext=(0, 10), ha='center', color=colors[0])
 
         # Añadir el número total de eventos
-        total_events = df[y_col].sum()
+        total_events = format_number(df[y_col].sum(), locale='es_ES')
         plt.annotate(f'Total Events: {total_events}', xy=(0.99, 0.01), xycoords='axes fraction', ha='right', va='bottom', fontsize=12, bbox=dict(facecolor='white', alpha=0.5))
 
         if title:

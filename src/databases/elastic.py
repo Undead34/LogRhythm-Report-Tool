@@ -278,7 +278,10 @@ class Package:
         return df_aggs
 
     def _handle_type_6(self, response):
+        aggregations = response.get("aggregations", {})
+        aggs_key = str(list(self._query['aggs'].keys())[0]).lower()
         aggregations = self._extract_aggregations(response)
+
         if not aggregations:
             return pd.DataFrame()
 
@@ -287,7 +290,7 @@ class Package:
             bucket_key = bucket['key']
             date_histogram = bucket['date_histogram']['buckets']
             df_histogram = self._create_dataframe_from_date_histogram_aggregations(date_histogram)
-            df_histogram['msg_class_name'] = bucket_key
+            df_histogram[aggs_key] = bucket_key
             df_list.append(df_histogram)
 
         df = pd.concat(df_list, ignore_index=True)
@@ -306,7 +309,7 @@ class Package:
         aggregations = response.get("aggregations", {})
         if not aggregations:
             return []
-
+        
         aggs_key = list(self._query['aggs'].keys())[0]
         aggs = self._query['aggs'][aggs_key]
 

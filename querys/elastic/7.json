@@ -1,6 +1,6 @@
 {
-  "id": "4f64662b-5b0c-4d50-a85f-bdb339c375f1",
-  "name": "events_histogram_by_msgclassname",
+  "id": "a3c7a3dc-5979-4a57-978d-d3c294a8af26",
+  "name": "events_histogram_by_priority",
   "description": "Realiza una búsqueda y agregación en los índices de logs para detectar los eventos de ataques más recientes, filtrando por ubicación impactada, IP impactada y tipo de mensaje.",
   "mode": "single",
   "index": [
@@ -11,10 +11,10 @@
   "query": {
     "size": 0,
     "aggs": {
-      "msg_class_name": {
+      "col_priority": {
         "terms": {
-          "field": "msgClassName",
-          "size": 10
+          "field": "priority",
+          "size": 100
         },
         "aggs": {
           "date_histogram": {

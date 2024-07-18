@@ -90,7 +90,7 @@ class GeneralTemplate:
 
         return elements
 
-    # TABLES
+    # TABLES Y GRAFICOS DE KPIs
 
     def add_table_alarm_distribution_by_entity_and_state(self):
         elements = ElementList()
@@ -292,9 +292,6 @@ class GeneralTemplate:
 
         return elements
 
-
-    # GRAFICOS
-
     def add_event_distribution(self):
         elements = ElementList()
 
@@ -327,6 +324,67 @@ class GeneralTemplate:
         elements += ListElement(interpretation_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
 
         elements += Spacer(0, 1 * cm)
+
+        return elements
+
+    def add_event_distribution_by_priority(self):
+        elements = ElementList()
+
+        # Descripción del gráfico
+        description_text = (
+            "El gráfico siguiente muestra la distribución de eventos registrados por día, "
+            "según la prioridad de los eventos. Este análisis permite identificar patrones temporales "
+            "diarios en la ocurrencia de eventos para cada categoría de prioridad."
+        )
+        elements += Paragraph(
+            self.theme.replace_bold_with_font(description_text),
+            self.style(self.paragraph_styles.SUB_TEXT_NORMAL)
+        )
+
+        # Obtener los datos de la consulta
+        df = next(q.run() for q in self.queries if q._id == "a3c7a3dc-5979-4a57-978d-d3c294a8af26")
+        df['date'] = pd.to_datetime(df['date'])
+
+        def categorize_priority(priority):
+            if priority <= 50:
+                return 'Low Priority'
+            elif priority <= 75:
+                return 'Medium Priority'
+            else:
+                return 'High Priority'
+        
+        df['priority_category'] = df['col_priority'].apply(categorize_priority)
+
+        # Ordenar el DataFrame por fecha
+        df = df.sort_values(by='date')
+
+        # Separar el DataFrame en múltiples DataFrames según la categoría de prioridad
+        dataframes = {priority: group for priority, group in df.groupby('priority_category')}
+
+        ordered_priorities = ['Low Priority', 'Medium Priority', 'High Priority']
+
+        for priority_category in ordered_priorities:
+            if priority_category in dataframes:
+                df_group = dataframes[priority_category]
+                # Crear el histograma por día para cada categoría de prioridad
+                elements += Historigram(
+                    df_group, "date", "count", show_legend=False, freq="1D",
+                    title=f"Distribución de Eventos por Día - Prioridad {priority_category.capitalize()}", 
+                    xlabel="Días del mes", ylabel="Eventos en ese día"
+                ).plot()
+
+                elements += Paragraph(f"Distribución de Eventos por Día - Prioridad {priority_category.capitalize()}", self.style(self.paragraph_styles.TEXT_GRAPHIC))
+                elements += Paragraph("Cómo Leer el Gráfico:", self.style(self.paragraph_styles.SUB_TITLE_1))
+
+                interpretation_items = [
+                    "**Eje X (Horizontal)**: Representa los días del mes.",
+                    "**Eje Y (Vertical)**: Representa el número total de eventos registrados.",
+                    "**Barras**: La altura de cada barra indica la cantidad de eventos ocurridos en ese día."
+                ]
+                interpretation_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in interpretation_items]
+                elements += ListElement(interpretation_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
+
+                elements += Spacer(0, 1 * cm)
 
         return elements
 
@@ -374,16 +432,92 @@ class GeneralTemplate:
 
         return elements
 
+    def add_alarm_status_table(self):
+        elements = ElementList()
+
+        # Obtener y procesar los datos
+        df = self.db.get_alarms_information()
+        df['AlarmDate'] = pd.to_datetime(df['AlarmDate'])
+
+        # Obtener entidades y mapear EntityID a Name
+        entities_df = self.db.get_entities()
+        entity_dict = dict(zip(entities_df['EntityID'], entities_df['Name']))
+        df['EntityName'] = df['EntityID'].map(entity_dict)
+
+        # Excluir las alarmas con estado "New", "OpenAlarm", "Working" y "Monitor"
+        initial_count = df.shape[0]
+        df_filtered = df[~df['AlarmStatus'].isin(['New', 'OpenAlarm', 'Working', 'Monitor'])]
+        final_count = df_filtered.shape[0]
+        total_removed = initial_count - final_count
+
+        elements += Paragraph(self.theme.replace_bold_with_font(f"""
+            Esta tabla proporciona un resumen del número de alarmas en LogRhythm que se han clasificado en diferentes estados.
+            Se excluyen las alarmas en estado **Nueva**, **Alarma Abierta**, **Trabajando** y **Monitorear** para enfocarse en aquellos estados que indican una resolución específica.
+            La información presentada en esta tabla ayuda a los usuarios a tener una visión clara de la distribución de las alarmas según su estado."""), self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
+
+        elements += Paragraph(self.theme.replace_bold_with_font(f"""
+            De un total inicial de {format_number(initial_count, locale='es_ES')} alarmas, se excluyeron {format_number(total_removed, locale='es_ES')} registros con estado **Nueva**, **Alarma Abierta**, **Trabajando** o **Monitorear**, resultando en {format_number(final_count, locale='es_ES')} alarmas consideradas para el análisis.
+        """), self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
+
+        # Agrupar los datos por 'EntityName', 'AlarmRuleName' y 'AlarmStatus'
+        alarms = df_filtered.groupby(['EntityName', 'AlarmRuleName', 'AlarmStatus']).size().unstack(fill_value=0).reset_index()
+
+        # Formatear los números en el DataFrame usando Babel
+        for col in alarms.columns[2:]:
+            alarms[col] = alarms[col].apply(lambda x: format_number(x, locale='es_ES'))
+
+        # Crear la tabla de datos
+        column_names = ['Entidad', 'Nombre de Alarma'] + [col for col in alarms.columns if col not in ['EntityName', 'AlarmRuleName', 'AlarmStatus']]
+        table_style = self.style(self.tables_styles.DEFAULT)
+        table = Table(alarms, table_style, column_names, mode='fit-full', indent=1.2 * cm, subtract=1.2 * cm).render()
+        
+        elements += table
+
+        # Añadir el título y la descripción de la tabla
+        elements += Paragraph("Tabla de Conteo de Estados de Alarma en LogRhythm", self.style(self.paragraph_styles.TEXT_GRAPHIC))
+
+        elements += Spacer(0, 1 * cm)
+
+        return elements
+
+    def run(self):
+        # Agregar portada e introducción
+        self.elements += self.add_cover()
+        self.elements += self.add_introduction()
+
+        # Sección de Indicadores de cumplimiento de SLA y Tiempos de Gestión
+        self.elements += Paragraph(self.theme.replace_bold_with_font("Contenido").upper(), self.style(self.paragraph_styles.TITLE_1))
+        self.elements += Paragraph("1. Indicadores de cumplimiento de SLA y Tiempos de Gestión", self.style(self.paragraph_styles.TITLE_2))
+
+        # self.elements += self.add_table_alarm_distribution_by_entity_and_state()
+        # self.elements += self.add_ttd_ttr_by_month_table_with_description()
+        # self.elements += self.add_ttd_ttr_by_msgclassname_table_with_description()
+
+        # Sección de Análisis de Eventos
+        self.elements += Paragraph("2. Análisis de Eventos", self.style(self.paragraph_styles.TITLE_2))
+
+        # self.elements += self.add_event_distribution()
+        # self.elements += self.add_event_distribution_by_priority()
+        # self.elements += self.add_event_distribution_by_class()
+
+        # Sección de Análisis de Alarmas
+        self.elements += Paragraph("3. Análisis de Alarmas", self.style(self.paragraph_styles.TITLE_2))
+
+        self.elements += self.add_alarm_status_table()
+        self.elements += self.add_alarm_trends_with_description()
+        self.elements += self.add_top_alarms()
+
+
     def add_alarm_trends_with_description(self):
         elements = ElementList()
 
-        elements += Paragraph("Tendencias de Alarmas por Prioridad", self.style(self.paragraph_styles.TITLE_1))
-        description = """
+        elements += Paragraph(self.theme.replace_bold_with_font(
+            """
             El gráfico de tendencias de alarmas por prioridad ofrece una representación visual detallada de la evolución y distribución temporal de las alarmas registradas en el sistema de monitoreo LogRhythm. Este gráfico se basa en datos agrupados y procesados para mostrar claramente cómo varían las ocurrencias de diferentes alarmas a lo largo del tiempo, separando las alarmas de baja prioridad en una categoría **'Low Priority'** para una mayor claridad visual.
-        """
-        elements += Paragraph(self.theme.replace_bold_with_font(description), self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
+            """
+        ), self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
 
-        elements += Paragraph("Cómo Leer el Gráfico:", self.style(self.paragraph_styles.TITLE_2))
+        elements += Paragraph("Cómo Leer el Gráfico:", self.style(self.paragraph_styles.SUB_TITLE_1))
 
         components_items = [
             "**Eje X (Horizontal)**: Representa las fechas. Cada punto en el eje X corresponde a un día específico.",
@@ -397,18 +531,6 @@ class GeneralTemplate:
         components_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in components_items]
         elements += ListElement(components_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
 
-        elements += Paragraph("Interpretación del Gráfico:", self.style(self.paragraph_styles.TITLE_2))
-
-        interpretation_items = [
-            "**Identificación de Picos y Tendencias**: Los picos en las líneas de tendencia permiten identificar días con un alto número de activaciones para ciertas alarmas.",
-            "**Comparación de Alarmas**: Las diferentes alarmas pueden ser comparadas para determinar cuáles son las más frecuentes o cuáles presentan picos de alta activación.",
-            "**Análisis Temporal**: Las activaciones de alarmas pueden ser analizadas a lo largo del tiempo para identificar patrones de cambio.",
-            "**Eventos Únicos**: Las anotaciones de eventos únicos permiten identificar eventos raros o críticos.",
-            "**Prioridad de Alarmas**: Las alarmas de baja prioridad se presentan separadamente para mantener la claridad del gráfico y enfocar la atención en las alarmas de mayor importancia."
-        ]
-        interpretation_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in interpretation_items]
-        elements += ListElement(interpretation_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
-
         # Gráfico completo
         full_figure = self._alarm_activation_line_graph(chunk=True)
         elements += full_figure
@@ -420,6 +542,18 @@ class GeneralTemplate:
         )
         full_description.hAlign = 'CENTER'
         elements += full_description
+
+        elements += Paragraph("Interpretación del Gráfico:", self.style(self.paragraph_styles.SUB_TITLE_1))
+
+        interpretation_items = [
+            "**Identificación de Picos y Tendencias**: Los picos en las líneas de tendencia permiten identificar días con un alto número de activaciones para ciertas alarmas.",
+            "**Comparación de Alarmas**: Las diferentes alarmas pueden ser comparadas para determinar cuáles son las más frecuentes o cuáles presentan picos de alta activación.",
+            "**Análisis Temporal**: Las activaciones de alarmas pueden ser analizadas a lo largo del tiempo para identificar patrones de cambio.",
+            "**Eventos Únicos**: Las anotaciones de eventos únicos permiten identificar eventos raros o críticos.",
+            "**Prioridad de Alarmas**: Las alarmas de baja prioridad se presentan separadamente para mantener la claridad del gráfico y enfocar la atención en las alarmas de mayor importancia."
+        ]
+        interpretation_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in interpretation_items]
+        elements += ListElement(interpretation_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
 
         # Gráficos segmentados por prioridad
         chunk_figures = self._alarm_activation_line_graph(chunk=False)
@@ -454,32 +588,6 @@ class GeneralTemplate:
         elements += bar.plot()
 
         return elements
-
-    def run(self):
-        # Agregar portada e introducción
-        self.elements += self.add_cover()
-        self.elements += self.add_introduction()
-
-        # Título de la sección de contenido
-        self.elements += Paragraph(self.theme.replace_bold_with_font("Contenido").upper(), self.style(self.paragraph_styles.TITLE_1))
-        self.elements += Paragraph("1. Indicadores de cumplimiento de SLA y Tiempos de Gestión", self.style(self.paragraph_styles.TITLE_2))
-
-        # # Agregar otras secciones y KPIs
-        self.elements += self.add_table_alarm_distribution_by_entity_and_state()
-        self.elements += self.add_ttd_ttr_by_month_table_with_description()
-        self.elements += self.add_ttd_ttr_by_msgclassname_table_with_description()
-
-        self.elements += self.add_event_distribution()
-        self.elements += self.add_event_distribution_by_class()
-
-        # self.elements += self.add_alarm_trends_with_description()
-        # self.elements += self.add_top_alarms()
-
-        # Agregar gráfico de distribución de eventos por categoría
-        # df = next(q.run() for q in self.queries if q._id == "337fb1d3-a5be-4f20-9928-f662ae002910")
-        # chart = Bar(df, x_col='key', y_col='doc_count', title='Distribución de Eventos por Categoría', orientation='horizontal', show_legend=False, axis_labels=True)
-        # self.elements += chart.plot()
-
 
     def plot_priority_levels(self):
         df = self.db.get_alarms_information()
@@ -520,7 +628,7 @@ class GeneralTemplate:
         """
         return self.theme.replace_bold_with_font(text)
 
-    def _process_alarm_data(self):
+    def _alarm_activation_line_graph(self, chunk: bool = False):
         df = self.db.get_alarms_information()
         df['AlarmDate'] = pd.to_datetime(df['AlarmDate']).dt.floor('d')
         df = df.groupby(['AlarmDate', 'AlarmRuleName', 'AlarmPriority'], observed=False).size().reset_index(name='Counts')
@@ -531,11 +639,6 @@ class GeneralTemplate:
 
         df = df[df['AlarmPriority'] >= priority]
         df = pd.concat([df, low_priority], ignore_index=True)
-
-        return df
-
-    def _alarm_activation_line_graph(self, chunk: bool = False):
-        df = self._process_alarm_data()
 
         if chunk:
             full_figure = Line(
