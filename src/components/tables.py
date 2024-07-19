@@ -89,7 +89,7 @@ class Table:
         elif self.mode == 'fit-full':
             col_widths = self._adjust_widths_fit_full(col_widths, total_width, usable_width)
         elif self.mode == 'auto':
-            col_widths = self._adjust_widths_auto_v2(col_widths, total_width, usable_width, header_widths)
+            col_widths = self._adjust_widths_auto(col_widths, total_width, usable_width)
         else:  # Default to 'fit'
             if total_width > usable_width:
                 scale_factor = usable_width / total_width
@@ -142,7 +142,7 @@ class Table:
             col_widths = [w * scale_factor for w in col_widths]
         return col_widths
 
-    def _adjust_widths_auto_v2(self, col_widths, total_width, usable_width, min_header_widths):
+    def _adjust_widths_auto(self, col_widths, total_width, usable_width):
         if total_width > usable_width:
             scale_factor = usable_width / total_width
             col_widths = [w * scale_factor for w in col_widths]
@@ -151,21 +151,5 @@ class Table:
         if total_width < usable_width:
             additional_width = usable_width - total_width
             col_widths = [w + additional_width / len(col_widths) for w in col_widths]
-        
-        for i in range(len(col_widths)):
-            if col_widths[i] < min_header_widths[i]:
-                col_widths[i] = min_header_widths[i]
-
-        total_width = sum(col_widths)
-        if total_width > usable_width:
-            remaining_width = usable_width - sum(min_header_widths)
-            remaining_col_widths = [w - min_header_widths[i] for i, w in enumerate(col_widths)]
-            remaining_total_width = sum(remaining_col_widths)
-            if remaining_total_width > 0:
-                scale_factor = remaining_width / remaining_total_width
-                for i in range(len(col_widths)):
-                    col_widths[i] = min_header_widths[i] + (col_widths[i] - min_header_widths[i]) * scale_factor
-            else:
-                col_widths = min_header_widths
 
         return col_widths

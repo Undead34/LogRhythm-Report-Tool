@@ -7,10 +7,13 @@ from babel.numbers import format_number
 import matplotlib.dates as mdates
 from uuid import uuid4 as v4
 import seaborn as sns
+import numpy as np
 from matplotlib.ticker import PercentFormatter
+from matplotlib.colors import LinearSegmentedColormap
 
 from typing import Optional
 import random
+
 
 class BaseChart():
     def __init__(self) -> None:
@@ -30,17 +33,32 @@ class BaseChart():
 
         return Image(output, width=15.59 * cm, height=8.52 * cm, hAlign="CENTER")
 
-    def get_palette(self, n: int):
-        base_colors = ['#50BBD4', '#4F81A4', '#F9A40C', '#F96611']
-        
-        if n <= len(base_colors):
-            return base_colors[:n]
+    def get_palette(self, n: int, custom = False):
+        if not custom:
+            return sns.color_palette('husl', n)
         else:
-            additional_colors = sns.color_palette('husl', n - len(base_colors))
-            return base_colors + additional_colors
+            base_colors = ["#15a5e4", "#2e9ece", "#4698b8", "#5f91a3", "#788b8d", "#908477", "#a97e61", "#f36a20"]
+            n_degradados = 2
+            
+            colors = []
+            for i in range(len(base_colors) - 1):
+                cmap = LinearSegmentedColormap.from_list("custom_cmap", [base_colors[i], base_colors[i+1]])
+                colors.extend([cmap(j / (n_degradados - 1)) for j in range(n_degradados)])
+                
+            # Añadir un degradado adicional entre el último y el primero para cerrar el ciclo
+            cmap = LinearSegmentedColormap.from_list("custom_cmap", [base_colors[-1], base_colors[0]])
+            colors.extend([cmap(j / (n_degradados - 1)) for j in range(n_degradados)])
+            
+            # Si el número total de colores generados es mayor a n, recortar la lista
+            if len(colors) > n:
+                return colors[:n]
+            else:
+                # Generar colores adicionales si es necesario usando 'husl'
+                additional_colors = sns.color_palette('husl', n - len(colors))
+                return colors + additional_colors
 
 class Bar(BaseChart):
-    def __init__(self, df: pd.DataFrame, x_col: str, y_col: str, title: Optional[str] = None, orientation: str = "vertical", show_xticks: bool = True, show_legend: bool = True, legend_title: str = "Categories", axis_labels: bool = True, xlabel = "", ylabel = "") -> None:
+    def __init__(self, df: pd.DataFrame, x_col: str, y_col: str, title: Optional[str] = None, orientation: str = "vertical", show_xticks: bool = True, show_legend: bool = True, legend_title: str = "Categories", axis_labels: bool = True, xlabel = "", ylabel = "", xtick_rotation: int = 0) -> None:
         super().__init__()
 
         # Formatear los nombres en el eje y con los conteos
@@ -68,6 +86,9 @@ class Bar(BaseChart):
         if show_legend:
             legend_labels = [f"{label} ({format_number(count, locale='es_ES')})" for label, count in zip(df[x_col], df[y_col])]
             plt.legend(bars, legend_labels, title=legend_title)
+        
+        if xtick_rotation != 0 and show_xticks:
+            plt.xticks(rotation=xtick_rotation)
         
         plt.tight_layout()
 
@@ -176,20 +197,72 @@ class Historigram(BaseChart):
 
 
 class Pie(BaseChart):
-    def __init__(self, df: pd.DataFrame, category_col: str, value_col: str) -> None:
+    def __init__(self, df: pd.DataFrame, category_col: str, value_col: str, title: Optional[str] = None,
+                 explode: Optional[bool] = False, labels: Optional[bool] = True, legend: Optional[bool] = True,
+                 min_pct: Optional[float] = 1.0, other_label: Optional[str] = 'Others', legend_title: Optional[str] = None) -> None:
         super().__init__()
         plt.figure(figsize=(12, 8))
-        pie_data = df.groupby(category_col)[value_col].sum()
-        colors = self.get_palette(len(pie_data))
         
-        pie_data.plot.pie(
-            autopct='%1.1f%%',
+        # Agrupar datos y calcular porcentajes
+        pie_data = df.groupby(category_col)[value_col].sum()
+        total = pie_data.sum()
+        pie_data_pct = (pie_data / total) * 100
+        
+        # Filtrar porciones pequeñas
+        mask = pie_data_pct >= min_pct
+        filtered_data = pie_data[mask]
+        other_data = pie_data[~mask]
+        other_value = other_data.sum()
+        
+        if other_value > 0:
+            filtered_data[other_label] = other_value
+            filtered_pct = pie_data_pct[mask].tolist() + [other_data.sum() / total * 100]
+        else:
+            filtered_pct = pie_data_pct[mask].tolist()
+        
+        colors = self.get_palette(len(filtered_data))
+        
+        # Opcional: Explode para destacar las porciones del pastel
+        explode_values = (0.1 if explode else 0) * np.ones(len(filtered_data))
+        
+        wedges, texts, autotexts = plt.pie(
+            filtered_data,
+            autopct=lambda p: f'{p:.1f}%' if p >= min_pct else '',
             startangle=140,
             colors=colors,
-            wedgeprops={'linewidth': 1, 'edgecolor': 'black'}
+            explode=explode_values,
+            wedgeprops={'linewidth': 1, 'edgecolor': 'black'},
+            textprops={'fontsize': 12} if labels else None,
+            shadow=False
         )
-        plt.title(f'Distribución de {value_col} por {category_col}')
+        
+        if title:
+            plt.title(title, fontsize=16)
+        
+        if labels:
+            for i, autotext in enumerate(autotexts):
+                if filtered_pct[i] >= min_pct:
+                    autotext.set_fontsize(10)
+                    autotext.set_color('black')
+                    
+                    # Ajustar la posición de las etiquetas de porcentaje
+                    x = autotext.get_position()[0]
+                    y = autotext.get_position()[1]
+                    # Mover las etiquetas hacia los bordes
+                    angle = np.degrees(np.arctan2(y, x))
+                    x_edge = 0.6 * np.cos(np.radians(angle))
+                    y_edge = 0.6 * np.sin(np.radians(angle))
+                    autotext.set_position((x_edge, y_edge))
+                    autotext.set_horizontalalignment('center')
+                    autotext.set_verticalalignment('center')
+
+        if legend:
+            legend_labels = [f'{cat} ({pct:.1f}%)' for cat, pct in zip(filtered_data.index, filtered_pct)]
+            legend_title = legend_title if legend_title else category_col
+            plt.legend(wedges, legend_labels, title=legend_title, loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
+
         plt.ylabel('')
+
 
 class HeatMap(BaseChart):
     def __init__(self, df: pd.DataFrame, index_col: str, columns_col: str, values_col: str, xlabel: str, ylabel: str) -> None:

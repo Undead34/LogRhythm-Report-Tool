@@ -15,7 +15,7 @@
         "must": [
           {
             "query_string": {
-              "query": "cve:/.*cve-[0-9]{4}-[0-9]{4,}.*/ AND isEvent: false AND {{entity_ids}}",
+              "query": "cve:/.*cve-[0-9]{4}-[0-9]{4,}.*/ AND isEvent: true AND {{entity_ids}}",
               "analyze_wildcard": true,
               "default_field": "*"
             }

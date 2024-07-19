@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from datetime import datetime, timedelta
 from reportlab.lib.units import cm
 from src.themes import theme
-from src.components import Bar, Cover, Line, PageBreak, Paragraph, Table, ListElement, Historigram, Spacer
+from src.components import Bar, Cover, Line, PageBreak, Paragraph, Table, ListElement, Historigram, Spacer, Pie
 import calendar
 
 from babel.numbers import format_number
@@ -184,6 +184,8 @@ class GeneralTemplate:
             'September': 'Septiembre', 'October': 'Octubre', 'November': 'Noviembre', 'December': 'Diciembre'
         })
 
+        monthly_data['Alarms'] = monthly_data['Alarms'].apply(lambda x: format_number(x, locale='es_ES'))
+
         column_names = ['Mes', 'Nº de alarmas', 'TTD Promedio', 'TTD Máximo', 'TTR Promedio', 'TTR Máximo']
 
         table_style = self.style(self.tables_styles.DEFAULT)
@@ -261,6 +263,8 @@ class GeneralTemplate:
             df_filtered[col] = df_filtered[col].apply(lambda x: str(timedelta(seconds=int(x))) if pd.notnull(x) else '00:00:00')
 
         column_names = ['Clasificación', 'Nº de alarmas', 'TTD Promedio', 'TTD Máximo', 'TTR Promedio', 'TTR Máximo']
+        
+        df_filtered['Count'] = df_filtered['Count'].apply(lambda x: format_number(x, locale='es_ES'))
 
         elements += Table(df_filtered, self.style(self.tables_styles.DEFAULT), column_names, mode='fit-full', indent=1.2 * cm, subtract=1.2 * cm).render()
         
@@ -562,6 +566,159 @@ class GeneralTemplate:
 
         return elements
 
+    def add_classification_name_count_table(self):
+        elements = ElementList()
+
+        elements += Paragraph("Distribución de Eventos por Clasificación", self.style(self.paragraph_styles.TITLE_2))
+
+        # Descripción de la tabla
+        description_text = (
+            "La tabla siguiente muestra la distribución de eventos registrados según su clasificación. "
+            "Este análisis permite identificar cuáles son los tipos de eventos más frecuentes y ayuda en la priorización de acciones de respuesta."
+        )
+        elements += Paragraph(
+            self.theme.replace_bold_with_font(description_text),
+            self.style(self.paragraph_styles.SUB_TEXT_NORMAL)
+        )
+        
+        # Procesar y formatear los datos
+        column_names = ['Clasificación', 'Cantidad']
+        table_style = self.style(self.tables_styles.DEFAULT)
+        
+        df = next(q.run() for q in self.queries if q._id == "8b47b29f-0dae-4f07-ace0-de0d138ef8ae")
+        df['doc_count'] = pd.to_numeric(df['doc_count'], errors='coerce')
+        df['doc_count'] = df['doc_count'].apply(lambda x: format_number(x, locale='es_ES') if pd.notnull(x) else 'N/A')
+
+        # Crear una tabla para mostrar los datos
+        table = Table(df, table_style, column_names, mode='fit-full', indent=1.2 * cm, subtract=1.2 * cm).render()
+        elements += table
+        
+        elements += Paragraph("Distribución de eventos por clasificación.", self.style(self.paragraph_styles.TEXT_GRAPHIC))
+        
+        elements += Paragraph("Cómo Interpretar la Tabla:", self.style(self.paragraph_styles.SUB_TITLE_1))
+        interpretation_items = [
+            "**Clasificación**: El tipo de evento registrado.",
+            "**Cantidad**: El número total de eventos registrados para cada clasificación."
+        ]
+        interpretation_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in interpretation_items]
+        elements += ListElement(interpretation_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
+        
+        elements += Spacer(0, 1 * cm)
+        
+        return elements
+
+    def add_classification_name_count_pie(self):
+        elements = ElementList()
+        
+        elements += Paragraph("Distribución de Eventos por Clasificación", self.style(self.paragraph_styles.TITLE_2))
+
+        # Descripción del gráfico
+        description_text = (
+            "El gráfico de pastel siguiente muestra la distribución de eventos registrados según su clasificación. "
+            "Este análisis visual ayuda a identificar rápidamente cuáles son los tipos de eventos más frecuentes."
+        )
+        elements += Paragraph(
+            self.theme.replace_bold_with_font(description_text),
+            self.style(self.paragraph_styles.SUB_TEXT_NORMAL)
+        )
+
+        # Crear el gráfico de pastel
+        df = next(q.run() for q in self.queries if q._id == "8b47b29f-0dae-4f07-ace0-de0d138ef8ae")
+        pie_chart = Pie(df, 'key', 'doc_count', title=None, min_pct=5, other_label='Otros', legend_title="Distribución de eventos por tipo").plot()
+        elements += pie_chart
+        
+        elements += Paragraph("Distribución de eventos por clasificación.", self.style(self.paragraph_styles.TEXT_GRAPHIC))
+        
+        elements += Paragraph("Cómo Interpretar el Gráfico:", self.style(self.paragraph_styles.SUB_TITLE_1))
+        interpretation_items = [
+            "**Segmentos del pastel**: Cada segmento representa una clasificación de evento.",
+            "**Tamaño del segmento**: El tamaño de cada segmento es proporcional a la cantidad de eventos en esa clasificación.",
+            "**Leyenda**: La leyenda muestra las clasificaciones de eventos y el porcentaje correspondiente de cada una."
+        ]
+        interpretation_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in interpretation_items]
+        elements += ListElement(interpretation_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
+        
+        elements += Spacer(0, 1 * cm)
+        
+        return elements
+
+    def add_top_ip_impacted_by_attackers(self):
+        elements = ElementList()
+        
+        # Descripción de la tabla
+        description_text = (
+            "La siguiente tabla muestra las direcciones IP más afectadas por ataques registrados. "
+            "Esta información es crucial para identificar los puntos de mayor vulnerabilidad y tomar medidas proactivas para mitigar los riesgos."
+        )
+        elements += Paragraph(description_text, self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
+
+        # Selección de columnas relevantes
+        columns_to_display = [
+            'impactedIp', 'originIp', 'originPort', 'protocolName', 'count', 'severity', 'msgSourceTypeName'
+        ]
+
+        # Renombrar columnas para mejor legibilidad
+        column_names = {
+            'impactedIp': 'IP Impactada',
+            'originIp': 'IP Origen',
+            'originPort': 'Puerto Origen',
+            'protocolName': 'Protocolo',
+            'count': 'N° Eventos',
+            'severity': 'Severidad',
+            'msgSourceTypeName': 'Fuente del Mensaje'
+        }
+        
+        # Ejecutar la consulta y formatear los datos
+        df = next(q.run() for q in self.queries if q._id == "7f43c88b-60a0-444a-93f9-ef80cb8473f8")
+        df = df.nlargest(10, 'count')
+        
+        # Seleccionar y renombrar columnas
+        df_display = df[columns_to_display].rename(columns=column_names)
+
+        # Formatear números
+        df_display['N° Eventos'] = df_display['N° Eventos'].apply(lambda x: format_number(x, locale='es_ES'))
+
+        # Crear la tabla
+        table_style = self.style(self.tables_styles.DEFAULT)
+        table = Table(df_display, table_style, list(column_names.values()), mode='auto', indent=1.2 * cm, subtract=1.2 * cm).render()
+        elements += table
+
+        # Añadir título y descripción de la tabla
+        elements += Paragraph("Tabla de IPs Más Impactadas por Ataques", self.style(self.paragraph_styles.TEXT_GRAPHIC))
+        elements += Spacer(0, 1 * cm)
+        
+        return elements
+
+    def add_top_ip_impact_bar_chart(self):
+        elements = ElementList()
+
+        # Descripción del gráfico
+        description_text = (
+            "El gráfico de barras a continuación muestra las direcciones IP más afectadas por ataques registrados, "
+            "permitiendo una visualización clara de los puntos de mayor vulnerabilidad."
+        )
+        elements += Paragraph(description_text, self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
+
+        # Seleccionar las 10 IPs más impactadas
+        df = next(q.run() for q in self.queries if q._id == "7f43c88b-60a0-444a-93f9-ef80cb8473f8")
+        top_ips = df.nlargest(10, 'count')
+
+        # Crear el gráfico de barras
+        bar_chart = Bar(
+            top_ips, 'impactedIp', 'count',
+            title="Top 10 IPs Impactadas por Ataques",
+            xlabel="IP Impactada", ylabel="Cantidad de Ataques",
+            xtick_rotation = 45
+        ).plot()
+        
+        elements += bar_chart
+
+        # Añadir el título y la descripción del gráfico
+        elements += Paragraph("Top 10 IPs Impactadas por Ataques", self.style(self.paragraph_styles.TEXT_GRAPHIC))
+        elements += Spacer(0, 1 * cm)
+
+        return elements
+
     def run(self):
         # Agregar portada e introducción
         self.elements += self.add_cover()
@@ -588,6 +745,13 @@ class GeneralTemplate:
         self.elements += self.add_alarm_status_table()
         self.elements += self.add_alarm_trends_with_description()
         self.elements += self.add_top_alarms()
+
+        self.elements += self.add_classification_name_count_table()
+        self.elements += self.add_classification_name_count_pie()
+
+        self.elements += self.add_top_ip_impacted_by_attackers()
+        self.elements += self.add_top_ip_impact_bar_chart()
+
 
 
     def add_top_alarms(self):
@@ -702,3 +866,13 @@ class GeneralTemplate:
             figures.append(figure.plot())
 
         return figures
+
+
+        # df = next(q.run() for q in self.queries if q._id == "6e867b27-ad83-4c4d-bc41-8af86dc5989a")
+        # print(df)
+        # df = next(q.run() for q in self.queries if q._id == "337fb1d3-a5be-4f20-9928-f662ae002910")
+        # print(df)
+        # df = next(q.run() for q in self.queries if q._id == "7f43c88b-60a0-444a-93f9-ef80cb8473f8")
+        # print(df)
+        # df = next(q.run() for q in self.queries if q._id == "7f43c88b-60a0-444a-93f9-ef80cb8473f8")
+        # print(df)

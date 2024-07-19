@@ -14,7 +14,7 @@
       "msg_class_name": {
         "terms": {
           "field": "msgClassName",
-          "size": 10
+          "size": 30
         },
         "aggs": {
           "date_histogram": {

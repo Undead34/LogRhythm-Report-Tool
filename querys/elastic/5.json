@@ -1,5 +1,5 @@
 {
-  "id": "6e867b27-ad83-4c4d-bc41-8af86dc5989a",
+  "id": "7f43c88b-60a0-444a-93f9-ef80cb8473f8",
   "name": "top_ip_impacted_by_attackers",
   "description": "Realiza una búsqueda y agregación en los índices de logs para detectar los eventos de ataques más recientes, filtrando por ubicación impactada, IP impactada y tipo de mensaje.",
   "mode": "single",
