@@ -10,6 +10,7 @@ import seaborn as sns
 import numpy as np
 from matplotlib.ticker import PercentFormatter
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.gridspec import GridSpec
 
 from typing import Optional
 import random
@@ -28,7 +29,7 @@ class BaseChart():
     
     def plot(self):
         output = self._save_chart()
-        plt.savefig(output, format='png', dpi=400, bbox_inches='tight', pad_inches=0.1)
+        plt.savefig(output, format='png', dpi=400, bbox_inches='tight', pad_inches=0.1, transparent=True)
         plt.close()
 
         return Image(output, width=15.59 * cm, height=8.52 * cm, hAlign="CENTER")
@@ -352,3 +353,47 @@ class Bubble(BaseChart):
         plt.ylabel(y_col)
         plt.xticks(rotation=45)
         plt.legend(title=color_col)
+
+class KPI(BaseChart):
+    def __init__(self, kpi_values, kpi_labels, kpi_units=None, layout='centered', rounded=True) -> None:
+        if kpi_units is None:
+            kpi_units = [""] * len(kpi_values)
+        
+        # Crear la figura y los ejes
+        fig = plt.figure(figsize=(12, 4))
+        
+        # Determinar la distribución de la cuadrícula
+        if layout == 'centered':
+            nrows = 1
+            ncols = len(kpi_values)
+        else:
+            # Para layout cuadrado, intentar una distribución cuadrada
+            nrows = int(len(kpi_values) ** 0.5)
+            ncols = (len(kpi_values) + nrows - 1) // nrows
+
+        # Crear una cuadrícula con GridSpec
+        gs = GridSpec(nrows, ncols, figure=fig, wspace=0.1, hspace=0.1) # Reducir wspace y hspace para menos separación
+        
+        # Obtener colores
+        colors = self.get_palette(len(kpi_values))
+
+        # Añadir los cuadros de KPI
+        for i, (value, label, unit, color) in enumerate(zip(kpi_values, kpi_labels, kpi_units, colors)):
+            row = i // ncols
+            col = i % ncols
+            ax = fig.add_subplot(gs[row, col])
+            ax.axis('off')
+
+            bbox_params = dict(facecolor=color, edgecolor='none', pad=10 if rounded else 30)  # Aumentar pad para cuadros más grandes
+            if rounded:
+                bbox_params['boxstyle'] = 'round,pad=0.3'  # Ajustar pad para bordes redondeados
+            
+            ax.text(0.5, 0.6, f"{unit}{value}", ha='center', va='center', fontsize=20, fontweight='bold', color='white', bbox=bbox_params)
+            ax.text(0.5, 0.3, label, ha='center', va='center', fontsize=15, color='gray')
+
+    def plot(self):
+        output = self._save_chart()
+        plt.savefig(output, format='png', dpi=400, bbox_inches='tight', transparent=True)
+        plt.close()
+
+        return Image(output, width=15.59 * cm, height=7.52 * cm, hAlign="CENTER")

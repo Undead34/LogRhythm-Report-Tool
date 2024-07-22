@@ -7,11 +7,12 @@ from typing import TYPE_CHECKING
 import pandas as pd
 from babel.numbers import format_number
 from reportlab.lib.units import cm
+from reportlab.platypus import Paragraph
 
 # Local application imports
 from src.utils import ElementList, logger
 from src.themes import theme
-from src.components import Bar, Line, Paragraph, Table, ListElement, Historigram, Spacer, Pie
+from src.components import Bar, Line, Table, ListElement, Historigram, Spacer, Pie, KPI
 from .utils import get_human_readable_period
 from .canvas import Canvas
 from .first_pages import introduction, cover
@@ -668,8 +669,50 @@ class GeneralTemplate:
 
         return elements
 
-    def performance_indicator():
-        pass
+
+    def key_performance_indicators(self):
+        elements = ElementList()
+
+        # Generar y formatear los datos de los KPIs
+        alarms_count = format_number(self.db.get_alarm_count(), "es_ES")
+        events_count = format_number(next(q.run() for q in self.queries if q._id == "get_events_count")["total"][0], "es_ES")
+        logs_count = format_number(next(q.run() for q in self.queries if q._id == "get_logs_count")["total"][0], "es_ES")
+
+        # Añadir título y descripción de los KPIs
+        elements += Paragraph(
+            self.theme.replace_bold_with_font(
+                """
+                Indicadores Clave de Rendimiento (KPIs)
+                """
+            ),
+            self.style(self.paragraph_styles.TITLE_2)
+        )
+
+        elements += Paragraph(
+            self.theme.replace_bold_with_font(
+                """
+                Los Indicadores Clave de Rendimiento (KPIs) son métricas esenciales que nos permiten medir la eficiencia y efectividad de nuestras operaciones de monitoreo de seguridad. A continuación, se presentan los tres KPIs principales para el período analizado:
+                """
+            ),
+            self.style(self.paragraph_styles.SUB_TEXT_NORMAL)
+        )
+
+        kpi_items = [
+            "**Total de Alarmas Generadas**: Refleja el volumen total de alarmas que el sistema de monitoreo ha detectado y registrado. Esta métrica es crucial para entender la carga de trabajo y la eficiencia del sistema de detección de amenazas.",
+            "**Total de Eventos Registrados**: Indica la cantidad de eventos que han sido registrados en el sistema, proporcionando una visión general del nivel de actividad y posibles incidentes de seguridad.",
+            "**Total de Logs Procesados**: Muestra la cantidad de logs que el sistema ha procesado, lo cual es vital para evaluar la cobertura y la profundidad del monitoreo de seguridad."
+        ]
+
+        kpi_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in kpi_items]
+        elements += ListElement(kpi_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
+
+        # Crear y añadir el gráfico de KPIs
+        elements += Spacer(0, -1 * cm)
+        elements += KPI([alarms_count, events_count, logs_count], ["Alarmas", "Eventos", "Logs"], layout="rect", rounded=False).plot()
+
+        elements += Spacer(0, 1 * cm)
+
+        return elements
 
     def run(self):
         # Agregar portada e introducción
@@ -678,11 +721,11 @@ class GeneralTemplate:
         self.elements += cover(self.config, self.metadata, self.theme)
         self.elements += introduction(self.theme)
 
-        # self.elements += self.performance_indicator()
+        # Sección de Indicadores Clave de Rendimiento
+        self.elements += Paragraph(self.theme.replace_bold_with_font("Contenido").upper(), self.style(self.paragraph_styles.TITLE_1))
+        self.elements += Paragraph("1. Indicadores Clave de Rendimiento", self.style(self.paragraph_styles.TITLE_2))
 
-        # Sección de Indicadores de cumplimiento de SLA y Tiempos de Gestión
-        # self.elements += Paragraph(self.theme.replace_bold_with_font("Contenido").upper(), self.style(self.paragraph_styles.TITLE_1))
-        # self.elements += Paragraph("1. Indicadores de cumplimiento de SLA y Tiempos de Gestión", self.style(self.paragraph_styles.TITLE_2))
+        self.elements += self.key_performance_indicators()
 
         # self.elements += self.add_table_alarm_distribution_by_entity_and_state()
         # self.elements += self.add_ttd_ttr_by_month_table_with_description()
