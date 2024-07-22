@@ -1,7 +1,6 @@
 # ReportLab Libraries
 from reportlab.platypus import SimpleDocTemplate
 from reportlab.lib.pagesizes import LETTER
-from reportlab.lib.units import cm
 
 from src.utils import ElementList
 from src.themes.theme import Theme

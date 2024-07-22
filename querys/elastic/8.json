@@ -1,7 +1,7 @@
 {
-  "id": "events_histogram_by_msgclassname",
+  "id": "events_histogram_by_priority",
   "metadata": {
-    "name": "Events Histogram by Message Class Name",
+    "name": "Events Histogram by Priority",
     "description": "Realiza una búsqueda y agregación en los índices de logs para detectar los eventos de ataques más recientes, filtrando por ubicación impactada, IP impactada y tipo de mensaje."
   },
   "processing_policy": {
@@ -17,45 +17,28 @@
     },
     "entity_ids_replacement": {
       "placeholder": "{{entity_ids}}",
-      "type": "query_string",
+      "type": "term",
       "field": "entityId"
     }
   },
   "result_processing": {
     "columns": [
-      "msgClassName",
-      "normalDate"
+      {
+        "_include_totals": "total"
+      }
     ],
-    "visualizations": []
+    "visualizations": [],
+    "expect_empty_hits": true,
+    "include_totals": true
   },
   "query": {
     "size": 0,
-    "aggs": {
-      "msg_class_name": {
-        "terms": {
-          "field": "msgClassName",
-          "size": 30
-        },
-        "aggs": {
-          "date_histogram": {
-            "date_histogram": {
-              "field": "normalDate",
-              "interval": "1h",
-              "time_zone": "America/New_York",
-              "min_doc_count": 1
-            }
-          }
-        }
-      }
-    },
     "query": {
       "bool": {
         "must": [
           {
-            "query_string": {
-              "query": "isEvent: true AND {{entity_ids}}",
-              "analyze_wildcard": true,
-              "default_field": "*"
+            "term": {
+              "isEvent": false
             }
           },
           {
@@ -66,7 +49,8 @@
                 "format": "epoch_millis"
               }
             }
-          }
+          },
+          "{{entity_ids}}"
         ]
       }
     }

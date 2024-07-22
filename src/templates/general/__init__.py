@@ -1,14 +1,21 @@
-import pandas as pd
-from src.utils import ElementList
-from .canvas import Canvas
-from typing import TYPE_CHECKING
-from datetime import datetime, timedelta
-from reportlab.lib.units import cm
-from src.themes import theme
-from src.components import Bar, Cover, Line, PageBreak, Paragraph, Table, ListElement, Historigram, Spacer, Pie
+# Standard library imports
 import calendar
+from datetime import timedelta
+from typing import TYPE_CHECKING
 
+# Third-party library imports
+import pandas as pd
 from babel.numbers import format_number
+from reportlab.lib.units import cm
+
+# Local application imports
+from src.utils import ElementList, logger
+from src.themes import theme
+from src.components import Bar, Line, Paragraph, Table, ListElement, Historigram, Spacer, Pie
+from .utils import get_human_readable_period
+from .canvas import Canvas
+from .first_pages import introduction, cover
+
 
 if TYPE_CHECKING:
     from src.databases import MSQLServer, Package
@@ -29,66 +36,7 @@ class GeneralTemplate:
         self.paragraph_styles = theme.ParagraphStyles
         self.tables_styles = theme.CustomTableStyles
         self.font_names = theme.FontsNames
-
-    def get_human_readable_period(self, start_date, end_date):
-        month_translation = {
-            'January': 'enero', 'February': 'febrero', 'March': 'marzo', 'April': 'abril', 
-            'May': 'mayo', 'June': 'junio', 'July': 'julio', 'August': 'agosto', 
-            'September': 'septiembre', 'October': 'octubre', 'November': 'noviembre', 'December': 'diciembre'
-        }
-        start_month = calendar.month_name[start_date.month]
-        end_month = calendar.month_name[end_date.month]
-        start_month_es = month_translation[start_month]
-        end_month_es = month_translation[end_month]
-        start_date_str = start_date.strftime(f'%d de {start_month_es} de %Y')
-        end_date_str = end_date.strftime(f'%d de {end_month_es} de %Y')
-        return start_date_str, end_date_str
-
-    def add_cover(self):
-        today = self._format_date(datetime.now())
-        start, end = map(self._format_date, self.config.date_range)
-        client_name, client_logo = self.config.client_details
-
-        text = self._prepare_text(today, start, end, client_name)
-        footer = f"© {datetime.now().year} Soluciones Netready, C.A. Todos los Derechos Reservados."
-
-        return Cover(self.metadata.get("title", ""), "./assets/images/netready.png", client_logo, text, footer, self.theme).render()
-
-    def add_introduction(self):
-        elements = ElementList()
-        elements += Paragraph("Introducción".upper(), self.style(self.paragraph_styles.TITLE_1))
-        elements += Paragraph("1. Objetivo del Reporte", self.style(self.paragraph_styles.TITLE_2))
-
-        intro_text =[
-            """
-            **Propósito**: Proporcionar una visión detallada y automatizada del estado del Sistema de Gestión de Información y Eventos de Seguridad (SIEM), 
-            destacando los aspectos clave relacionados con la seguridad, el rendimiento y la conformidad.
-            """,
-            """
-            **Alcance**: Este reporte cubre la actividad del SIEM durante el periodo especificado,
-              incluyendo la identificación de atacantes, vulnerabilidades, alarmas, 
-                fallas operativas, detalles de logs, estadísticas de componentes y resúmenes automáticos.
-            """,
-            """
-            **Metodología**: Los datos presentados han sido recopilados y analizados utilizando herramientas automatizadas que integran y correlacionan información de múltiples fuentes. 
-            Los gráficos y tablas incluidos son el resultado de análisis estadísticos diseñados para resaltar tendencias significativas y puntos críticos.
-            """,
-            """**Estructura del Reporte**: El reporte se divide en varias secciones clave:"""]
-    
-        elements += [Paragraph(self.theme.replace_bold_with_font(text), self.style(self.paragraph_styles.SUB_TEXT_NORMAL)) for text in intro_text]
-
-        sections = [
-            "**Indicadores de cumplimiento de SLA y Tiempos de Gestión**: Un análisis detallado de los indicadores de nivel de servicio (SLA) y tiempos de respuesta para la gestión de incidentes y eventos.",
-            "**Análisis de Eventos**: Un desglose de los eventos capturados por el SIEM, categorizados por tipo, gravedad y fuente.",
-            "**Detección de Amenazas**: Información sobre amenazas detectadas, incluyendo atacantes identificados, métodos de ataque y medidas de mitigación implementadas."
-        ]
-
-        sections = [Paragraph(self.theme.replace_bold_with_font(section), self.style(self.paragraph_styles.SUB_LIST)) for section in sections]
-
-        elements += ListElement(sections, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='bullet', bulletColor=self.theme.colors.get("light_blue"), leftIndent=-0.5 * cm).render()
-        elements += PageBreak()
-
-        return elements
+        self.logger = logger.get_logger()
 
     # TABLES Y GRAFICOS DE KPIs
 
@@ -96,7 +44,7 @@ class GeneralTemplate:
         elements = ElementList()
 
         # Reemplazo de fechas con los periodos reales en formato legible
-        start_date_str, end_date_str = self.get_human_readable_period(self.config.date_range[0], self.config.date_range[1])
+        start_date_str, end_date_str = get_human_readable_period(self.config.date_range[0], self.config.date_range[1])
         total_alarms = self.db.get_alarm_count()
         # Formatear el número total de alarmas usando Babel
         total_alarms = format_number(total_alarms, locale='es_ES')
@@ -383,11 +331,11 @@ class GeneralTemplate:
                 # Crear el histograma por día para cada categoría de prioridad
                 elements += Historigram(
                     df_group, "date", "count", show_legend=False, freq="1D",
-                    title=f"Distribución de Eventos por Día - Prioridad {priority_category.capitalize()}", 
+                    title=f"Distribución de Eventos por Día - {priority_category.capitalize()}", 
                     xlabel="Días del mes", ylabel="Eventos en ese día"
                 ).plot()
 
-                elements += Paragraph(f"Distribución de Eventos por Día - Prioridad {priority_category.capitalize()}", self.style(self.paragraph_styles.TEXT_GRAPHIC))
+                elements += Paragraph(f"Distribución de Eventos por Día - {priority_category.capitalize()}", self.style(self.paragraph_styles.TEXT_GRAPHIC))
                 elements += Paragraph("Cómo Leer el Gráfico:", self.style(self.paragraph_styles.SUB_TITLE_1))
 
                 interpretation_items = [
@@ -429,22 +377,23 @@ class GeneralTemplate:
             # Crear el histograma por día para cada clase de mensaje
             elements += Historigram(
                 df_group, "date", "count", show_legend=False, freq="1D",
-                title=f"Distribución de Eventos por Día - {msg_class_name}", 
+                title=f"Distribución de Eventos por Día - {msg_class_name.capitalize()}", 
                 xlabel="Días del mes", ylabel="Eventos en ese día"
             ).plot()
 
-            elements += Paragraph(f"Distribución de Eventos por Día - {msg_class_name}", self.style(self.paragraph_styles.TEXT_GRAPHIC))
-            elements += Paragraph("Cómo Leer el Gráfico:", self.style(self.paragraph_styles.SUB_TITLE_1))
+            elements += Paragraph(f"Distribución de Eventos por Día - {msg_class_name.capitalize()}", self.style(self.paragraph_styles.TEXT_GRAPHIC))
+        
+        elements += Paragraph("Cómo Leer los Gráficos:", self.style(self.paragraph_styles.SUB_TITLE_1))
 
-            interpretation_items = [
-                "**Eje X (Horizontal)**: Representa los días del mes.",
-                "**Eje Y (Vertical)**: Representa el número total de eventos registrados.",
-                "**Barras**: La altura de cada barra indica la cantidad de eventos ocurridos en ese día."
-            ]
-            interpretation_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in interpretation_items]
-            elements += ListElement(interpretation_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
+        interpretation_items = [
+            "**Eje X (Horizontal)**: Representa los días del mes.",
+            "**Eje Y (Vertical)**: Representa el número total de eventos registrados.",
+            "**Barras**: La altura de cada barra indica la cantidad de eventos ocurridos en ese día."
+        ]
+        interpretation_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in interpretation_items]
+        elements += ListElement(interpretation_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
 
-            elements += Spacer(0, 1 * cm)
+        elements += Spacer(0, 1 * cm)
 
         return elements
 
@@ -719,40 +668,45 @@ class GeneralTemplate:
 
         return elements
 
+    def performance_indicator():
+        pass
+
     def run(self):
         # Agregar portada e introducción
-        self.elements += self.add_cover()
-        self.elements += self.add_introduction()
+        self.logger.debug("Añadiendo portada al informe e introducción")
+
+        self.elements += cover(self.config, self.metadata, self.theme)
+        self.elements += introduction(self.theme)
+
+        # self.elements += self.performance_indicator()
 
         # Sección de Indicadores de cumplimiento de SLA y Tiempos de Gestión
-        self.elements += Paragraph(self.theme.replace_bold_with_font("Contenido").upper(), self.style(self.paragraph_styles.TITLE_1))
-        self.elements += Paragraph("1. Indicadores de cumplimiento de SLA y Tiempos de Gestión", self.style(self.paragraph_styles.TITLE_2))
+        # self.elements += Paragraph(self.theme.replace_bold_with_font("Contenido").upper(), self.style(self.paragraph_styles.TITLE_1))
+        # self.elements += Paragraph("1. Indicadores de cumplimiento de SLA y Tiempos de Gestión", self.style(self.paragraph_styles.TITLE_2))
 
-        self.elements += self.add_table_alarm_distribution_by_entity_and_state()
-        self.elements += self.add_ttd_ttr_by_month_table_with_description()
-        self.elements += self.add_ttd_ttr_by_msgclassname_table_with_description()
+        # self.elements += self.add_table_alarm_distribution_by_entity_and_state()
+        # self.elements += self.add_ttd_ttr_by_month_table_with_description()
+        # self.elements += self.add_ttd_ttr_by_msgclassname_table_with_description()
 
-        # Sección de Análisis de Eventos
-        self.elements += Paragraph("2. Análisis de Eventos", self.style(self.paragraph_styles.TITLE_2))
+        # # # Sección de Análisis de Eventos
+        # self.elements += Paragraph("2. Análisis de Eventos", self.style(self.paragraph_styles.TITLE_2))
 
-        self.elements += self.add_event_distribution()
-        self.elements += self.add_event_distribution_by_priority()
-        self.elements += self.add_event_distribution_by_class()
+        # self.elements += self.add_event_distribution()
+        # self.elements += self.add_event_distribution_by_priority()
+        # self.elements += self.add_event_distribution_by_class()
 
-        # Sección de Análisis de Alarmas
-        self.elements += Paragraph("3. Análisis de Alarmas", self.style(self.paragraph_styles.TITLE_2))
+        # # Sección de Análisis de Alarmas
+        # self.elements += Paragraph("3. Análisis de Alarmas", self.style(self.paragraph_styles.TITLE_2))
 
-        self.elements += self.add_alarm_status_table()
-        self.elements += self.add_alarm_trends_with_description()
-        self.elements += self.add_top_alarms()
+        # self.elements += self.add_alarm_status_table()
+        # self.elements += self.add_alarm_trends_with_description()
+        # self.elements += self.add_top_alarms()
 
-        self.elements += self.add_classification_name_count_table()
-        self.elements += self.add_classification_name_count_pie()
+        # self.elements += self.add_classification_name_count_table()
+        # self.elements += self.add_classification_name_count_pie()
 
-        self.elements += self.add_top_ip_impacted_by_attackers()
-        self.elements += self.add_top_ip_impact_bar_chart()
-
-
+        # self.elements += self.add_top_ip_impacted_by_attackers()
+        # self.elements += self.add_top_ip_impact_bar_chart()
 
     def add_top_alarms(self):
         elements = ElementList()
@@ -800,19 +754,6 @@ class GeneralTemplate:
         ).plot()
 
         return [figure]
-
-    # Private
-    def _format_date(self, date: datetime) -> str:
-        return date.strftime('%Y-%m-%dT%H:%M:%SZ')
-
-    def _prepare_text(self, today: str, start: str, end: str, client_name: str) -> str:
-        text = f"""
-            **Reporte preparado para:** {client_name}<br/>
-            **Fecha de creación:** {today}<br/>
-            **Periodo del reporte:** Entre {start} y {end}<br/>
-            **Preparado por:** {self.metadata.get("author", "Netready Solutions")}
-        """
-        return self.theme.replace_bold_with_font(text)
 
     def _alarm_activation_line_graph(self, chunk: bool = False):
         df = self.db.get_alarms_information()
@@ -866,13 +807,3 @@ class GeneralTemplate:
             figures.append(figure.plot())
 
         return figures
-
-
-        # df = next(q.run() for q in self.queries if q._id == "6e867b27-ad83-4c4d-bc41-8af86dc5989a")
-        # print(df)
-        # df = next(q.run() for q in self.queries if q._id == "337fb1d3-a5be-4f20-9928-f662ae002910")
-        # print(df)
-        # df = next(q.run() for q in self.queries if q._id == "7f43c88b-60a0-444a-93f9-ef80cb8473f8")
-        # print(df)
-        # df = next(q.run() for q in self.queries if q._id == "7f43c88b-60a0-444a-93f9-ef80cb8473f8")
-        # print(df)

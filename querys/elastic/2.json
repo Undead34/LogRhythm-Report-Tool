@@ -1,13 +1,47 @@
 {
-  "id": "337fb1d3-a5be-4f20-9928-f662ae002910",
-  "name": "top_events_vulnerability_analysis",
-  "description": "Realiza una búsqueda y agregación en los índices de logs para detectar los eventos relacionados con vulnerabilidades más recientes, filtrando por el nombre de la clase de mensaje, el nombre común del evento, y asegurando que el campo CVE esté presente y sea un evento válido.",
-  "mode": "single",
-  "index": [
-    "logs-*"
-  ],
-  "aggregation_result": true,
-  "type": "3",
+  "id": "top_events_vulnerability_analysis",
+  "metadata": {
+    "name": "Top Events Vulnerability Analysis",
+    "description": "Realiza una búsqueda y agregación en los índices de logs para detectar los eventos relacionados con vulnerabilidades más recientes, filtrando por el nombre de la clase de mensaje, el nombre común del evento, y asegurando que el campo CVE esté presente y sea un evento válido."
+  },
+  "processing_policy": {
+    "mode": "single",
+    "index": [
+      "logs-*"
+    ],
+    "date_range_replacement": {
+      "field": "normalDate",
+      "gte_placeholder": "{{gte}}",
+      "lte_placeholder": "{{lte}}",
+      "format": "epoch_millis"
+    },
+    "entity_ids_replacement": {
+      "placeholder": "{{entity_ids}}",
+      "type": "query_string",
+      "field": "entityId"
+    }
+  },
+  "result_processing": {
+    "columns": [
+      "commonEventName",
+      "cve",
+      "directionName",
+      "entityName",
+      "impactedIp",
+      "impactedPort",
+      "isEvent",
+      "logSourceName",
+      "msgClassName",
+      "msgClassTypeName",
+      "msgSourceTypeName",
+      "priority",
+      "severity",
+      "vendorMessageId",
+      "logSourceName",
+      "originName"
+    ],
+    "visualizations": []
+  },
   "query": {
     "size": 0,
     "query": {

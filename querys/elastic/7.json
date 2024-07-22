@@ -1,13 +1,33 @@
 {
-  "id": "a3c7a3dc-5979-4a57-978d-d3c294a8af26",
-  "name": "events_histogram_by_priority",
-  "description": "Realiza una búsqueda y agregación en los índices de logs para detectar los eventos de ataques más recientes, filtrando por ubicación impactada, IP impactada y tipo de mensaje.",
-  "mode": "single",
-  "index": [
-    "logs-*"
-  ],
-  "aggregation_result": true,
-  "type": "6",
+  "id": "events_histogram_by_priority",
+  "metadata": {
+    "name": "Events Histogram by Priority",
+    "description": "Realiza una búsqueda y agregación en los índices de logs para detectar los eventos de ataques más recientes, filtrando por ubicación impactada, IP impactada y tipo de mensaje."
+  },
+  "processing_policy": {
+    "mode": "single",
+    "index": [
+      "logs-*"
+    ],
+    "date_range_replacement": {
+      "field": "normalDate",
+      "gte_placeholder": "{{gte}}",
+      "lte_placeholder": "{{lte}}",
+      "format": "epoch_millis"
+    },
+    "entity_ids_replacement": {
+      "placeholder": "{{entity_ids}}",
+      "type": "query_string",
+      "field": "entityId"
+    }
+  },
+  "result_processing": {
+    "columns": [
+      "priority",
+      "normalDate"
+    ],
+    "visualizations": []
+  },
   "query": {
     "size": 0,
     "aggs": {

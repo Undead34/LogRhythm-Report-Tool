@@ -1,13 +1,44 @@
 {
-  "id": "7f43c88b-60a0-444a-93f9-ef80cb8473f8",
-  "name": "top_ip_impacted_by_attackers",
-  "description": "Realiza una búsqueda y agregación en los índices de logs para detectar los eventos de ataques más recientes, filtrando por ubicación impactada, IP impactada y tipo de mensaje.",
-  "mode": "single",
-  "index": [
-    "logs-*"
-  ],
-  "aggregation_result": true,
-  "type": "3",
+  "id": "top_ip_impacted_by_attackers",
+  "metadata": {
+    "name": "Top IP Impacted by Attackers",
+    "description": "Realiza una búsqueda y agregación en los índices de logs para detectar los eventos de ataques más recientes, filtrando por ubicación impactada, IP impactada y tipo de mensaje."
+  },
+  "processing_policy": {
+    "mode": "single",
+    "index": [
+      "logs-*"
+    ],
+    "date_range_replacement": {
+      "field": "normalDate",
+      "gte_placeholder": "{{gte}}",
+      "lte_placeholder": "{{lte}}",
+      "format": "epoch_millis"
+    },
+    "entity_ids_replacement": {
+      "placeholder": "{{entity_ids}}",
+      "type": "query_string",
+      "field": "entityId"
+    }
+  },
+  "result_processing": {
+    "columns": [
+      "normalDate",
+      "priority",
+      "impactedPort",
+      "msgSourceTypeName",
+      "protocolName",
+      "originIp",
+      "severity",
+      "msgClassName",
+      "originPort",
+      "directionName",
+      "impactedLocationName",
+      "impactedIp",
+      "logSourceName"
+    ],
+    "visualizations": []
+  },
   "query": {
     "size": 0,
     "query": {

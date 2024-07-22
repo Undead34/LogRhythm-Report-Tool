@@ -1,13 +1,33 @@
 {
-  "id": "8b47b29f-0dae-4f07-ace0-de0d138ef8ae",
-  "name": "classification_name_count",
-  "description": "Clasificación nombre recuento",
-  "mode": "single",
-  "index": [
-    "logs-*"
-  ],
-  "aggregation_result": true,
-  "type": "5",
+  "id": "classification_name_count",
+  "metadata": {
+    "name": "Clasificación Nombre Recuento",
+    "description": "Clasificación nombre recuento"
+  },
+  "processing_policy": {
+    "mode": "single",
+    "index": [
+      "logs-*"
+    ],
+    "date_range_replacement": {
+      "field": "normalDate",
+      "gte_placeholder": "{{gte}}",
+      "lte_placeholder": "{{lte}}",
+      "format": "epoch_millis"
+    },
+    "entity_ids_replacement": {
+      "placeholder": "{{entity_ids}}",
+      "type": "query_string",
+      "field": "entityId"
+    }
+  },
+  "result_processing": {
+    "columns": [
+      "msgClassName",
+      "count"
+    ],
+    "visualizations": []
+  },
   "query": {
     "size": 0,
     "query": {

@@ -1,13 +1,32 @@
 {
-  "id": "34607e55-49ea-44d9-a152-b3d2bdbae24b",
-  "name": "events_histogram",
-  "description": "Event Date Histogram",
-  "mode": "single",
-  "index": [
-    "logs-*"
-  ],
-  "aggregation_result": true,
-  "type": "4",
+  "id": "events_histogram",
+  "metadata": {
+    "name": "Event Date Histogram",
+    "description": "Event Date Histogram"
+  },
+  "processing_policy": {
+    "mode": "single",
+    "index": [
+      "logs-*"
+    ],
+    "date_range_replacement": {
+      "field": "normalDate",
+      "gte_placeholder": "{{gte}}",
+      "lte_placeholder": "{{lte}}",
+      "format": "epoch_millis"
+    },
+    "entity_ids_replacement": {
+      "placeholder": "{{entity_ids}}",
+      "type": "query_string",
+      "field": "entityId"
+    }
+  },
+  "result_processing": {
+    "columns": [
+      "normalDate"
+    ],
+    "visualizations": []
+  },
   "query": {
     "size": 500,
     "sort": [
