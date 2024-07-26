@@ -262,14 +262,15 @@ class GeneralTemplate:
         )
 
         # Obtener los datos de la consulta
-        df = next(q.run() for q in self.queries if q._id == "34607e55-49ea-44d9-a152-b3d2bdbae24b")
+        df = next(q.run() for q in self.queries if q._id == "events_histogram")
+
         if df.empty:
             return []
 
-        df['date'] = pd.to_datetime(df['date'])
+        df['key_as_string'] = pd.to_datetime(df['key_as_string'])
 
         # Crear el histograma por día
-        elements += Historigram(df, "date", "count", show_legend=False, freq="1D", title="Distribución de Eventos por Día", xlabel="Días del mes", ylabel="Eventos en ese día").plot()
+        elements += Historigram(df, "key_as_string", "doc_count", show_legend=False, freq="1D", title="Distribución de Eventos por Día", xlabel="Días del mes", ylabel="Eventos en ese día").plot()
         
         elements += Paragraph("Distribución de Eventos por Día", self.style(self.paragraph_styles.TEXT_GRAPHIC))
         elements += Paragraph("Cómo Leer el Gráfico:", self.style(self.paragraph_styles.SUB_TITLE_1))
@@ -301,13 +302,15 @@ class GeneralTemplate:
         )
 
         # Obtener los datos de la consulta
-        df = next(q.run() for q in self.queries if q._id == "a3c7a3dc-5979-4a57-978d-d3c294a8af26")
-        
+        df = next(q.run() for q in self.queries if q._id == "events_histogram_by_priority")
+
         if df.empty:
             return []
-        
-        df['date'] = pd.to_datetime(df['date'])
 
+        # Convertir la columna 'key_as_string' a datetime
+        df['key_as_string'] = pd.to_datetime(df['key_as_string'])
+
+        # Función para categorizar prioridades
         def categorize_priority(priority):
             if priority <= 50:
                 return 'Low Priority'
@@ -315,14 +318,21 @@ class GeneralTemplate:
                 return 'Medium Priority'
             else:
                 return 'High Priority'
-        
-        df['priority_category'] = df['col_priority'].apply(categorize_priority)
 
-        # Ordenar el DataFrame por fecha
-        df = df.sort_values(by='date')
+        # Aplicar la función de categorización
+        df['priority_category'] = df['key'].apply(categorize_priority)
+
+        # Extraer la fecha (sin la hora) para agrupar
+        df['date'] = df['key_as_string'].dt.date
+
+        # Ordenar el DataFrame por fecha y hora
+        df = df.sort_values(by=['date', 'key_as_string'])
+
+        # Obtener el último registro de cada día y categoría de prioridad
+        df_last_per_day = df.groupby(['date', 'priority_category']).tail(1).reset_index(drop=True)
 
         # Separar el DataFrame en múltiples DataFrames según la categoría de prioridad
-        dataframes = {priority: group for priority, group in df.groupby('priority_category')}
+        dataframes = {priority: group for priority, group in df_last_per_day.groupby('priority_category')}
 
         ordered_priorities = ['Low Priority', 'Medium Priority', 'High Priority']
 
@@ -331,23 +341,24 @@ class GeneralTemplate:
                 df_group = dataframes[priority_category]
                 # Crear el histograma por día para cada categoría de prioridad
                 elements += Historigram(
-                    df_group, "date", "count", show_legend=False, freq="1D",
-                    title=f"Distribución de Eventos por Día - {priority_category.capitalize()}", 
+                    df_group, "date", "doc_count", show_legend=False, freq="1D",
+                    title=f"Distribución de Eventos por Día - {priority_category.capitalize()}",
                     xlabel="Días del mes", ylabel="Eventos en ese día"
                 ).plot()
 
                 elements += Paragraph(f"Distribución de Eventos por Día - {priority_category.capitalize()}", self.style(self.paragraph_styles.TEXT_GRAPHIC))
-                elements += Paragraph("Cómo Leer el Gráfico:", self.style(self.paragraph_styles.SUB_TITLE_1))
 
-                interpretation_items = [
-                    "**Eje X (Horizontal)**: Representa los días del mes.",
-                    "**Eje Y (Vertical)**: Representa el número total de eventos registrados.",
-                    "**Barras**: La altura de cada barra indica la cantidad de eventos ocurridos en ese día."
-                ]
-                interpretation_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in interpretation_items]
-                elements += ListElement(interpretation_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
+        elements += Paragraph("Cómo Leer el Gráfico:", self.style(self.paragraph_styles.SUB_TITLE_1))
 
-                elements += Spacer(0, 1 * cm)
+        interpretation_items = [
+            "**Eje X (Horizontal)**: Representa los días del mes.",
+            "**Eje Y (Vertical)**: Representa el número total de eventos registrados.",
+            "**Barras**: La altura de cada barra indica la cantidad de eventos ocurridos en ese día."
+        ]
+        interpretation_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in interpretation_items]
+        elements += ListElement(interpretation_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
+
+        elements += Spacer(0, 1 * cm)
 
         return elements
 
@@ -366,18 +377,21 @@ class GeneralTemplate:
         )
 
         # Obtener los datos de la consulta
-        df = next(q.run() for q in self.queries if q._id == "4f64662b-5b0c-4d50-a85f-bdb339c375f1")
+        df = next(q.run() for q in self.queries if q._id == "events_histogram_by_msgclassname")
+        
         if df.empty:
             return []
-        df['date'] = pd.to_datetime(df['date'])
+        
+        # Convertir la columna 'key_as_string' a datetime
+        df['key_as_string'] = pd.to_datetime(df['key_as_string'])
 
         # Separar el DataFrame en múltiples DataFrames según el valor de msg_class_name
-        dataframes = {msg_class_name: group for msg_class_name, group in df.groupby('msg_class_name')}
+        dataframes = {msg_class_name: group for msg_class_name, group in df.groupby('key')}
 
         for msg_class_name, df_group in dataframes.items():
             # Crear el histograma por día para cada clase de mensaje
             elements += Historigram(
-                df_group, "date", "count", show_legend=False, freq="1D",
+                df_group, "key_as_string", "doc_count", show_legend=False, freq="1D",
                 title=f"Distribución de Eventos por Día - {msg_class_name.capitalize()}", 
                 xlabel="Días del mes", ylabel="Eventos en ese día"
             ).plot()
@@ -397,6 +411,187 @@ class GeneralTemplate:
         elements += Spacer(0, 1 * cm)
 
         return elements
+
+    def key_performance_indicators(self):
+        try:
+            elements = ElementList()
+
+            # Generar y formatear los datos de los KPIs
+            alarms_count = format_number(self.db.get_alarm_count(), "es_ES")
+            events_count = format_number(next(q.run() for q in self.queries if q._id == "get_events_count")["total"][0], "es_ES")
+            logs_count = format_number(next(q.run() for q in self.queries if q._id == "get_logs_count")["total"][0], "es_ES")
+
+            # Añadir título y descripción de los KPIs
+            elements += Paragraph(
+                self.theme.replace_bold_with_font(
+                    """
+                    2. Indicadores Clave de Rendimiento (KPIs)
+                    """
+                ),
+                self.style(self.paragraph_styles.TITLE_2)
+            )
+
+            elements += Paragraph(
+                self.theme.replace_bold_with_font(
+                    """
+                    Los Indicadores Clave de Rendimiento (KPIs) son métricas esenciales que nos permiten medir la eficiencia y efectividad de nuestras operaciones de monitoreo de seguridad. A continuación, se presentan los tres KPIs principales para el período analizado:
+                    """
+                ),
+                self.style(self.paragraph_styles.SUB_TEXT_NORMAL)
+            )
+
+            kpi_items = [
+                "**Total de Alarmas Generadas**: Refleja el volumen total de alarmas que el sistema de monitoreo ha detectado y registrado. Esta métrica es crucial para entender la carga de trabajo y la eficiencia del sistema de detección de amenazas.",
+                "**Total de Eventos Registrados**: Indica la cantidad de eventos que han sido registrados en el sistema, proporcionando una visión general del nivel de actividad y posibles incidentes de seguridad.",
+                "**Total de Logs Procesados**: Muestra la cantidad de logs que el sistema ha procesado, lo cual es vital para evaluar la cobertura y la profundidad del monitoreo de seguridad."
+            ]
+
+            kpi_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in kpi_items]
+            elements += ListElement(kpi_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
+
+            # Crear y añadir el gráfico de KPIs
+            elements += Spacer(0, -1 * cm)
+            elements += KPI([alarms_count, events_count, logs_count], ["Alarmas", "Eventos", "Logs"], layout="rect", rounded=False).plot()
+            elements += Spacer(0, -1 * cm)
+
+            elements += self.add_ttd_ttr_by_month_table_with_description()
+            elements += self.add_ttd_ttr_by_msgclassname_table_with_description()
+            elements += self.add_table_alarm_distribution_by_entity_and_state()
+            elements += self.add_event_distribution()
+            elements += self.add_event_distribution_by_priority()
+
+            return elements
+        except Exception as e:
+            print(e)
+
+    def run(self):
+        # Agregar portada e introducción
+        self.logger.debug("Añadiendo portada al informe e introducción")
+
+        self.elements += cover(self.config, self.metadata, self.theme)
+        self.elements += introduction(self.theme)
+
+        # Sección de Indicadores Clave de Rendimiento
+        self.elements += self.key_performance_indicators()
+
+        # # # Sección de Análisis de Eventos
+        self.elements += Paragraph("2. Análisis de Eventos", self.style(self.paragraph_styles.TITLE_2))
+
+        self.elements += self.add_event_distribution_by_priority()
+        self.elements += self.add_event_distribution_by_class()
+
+        # # # Sección de Análisis de Alarmas
+        self.elements += Paragraph("3. Análisis de Alarmas", self.style(self.paragraph_styles.TITLE_2))
+
+        self.elements += self.add_alarm_status_table()
+        self.elements += self.add_alarm_trends_with_description()
+        self.elements += self.add_top_alarms()
+
+        self.elements += self.add_classification_name_count_table()
+        self.elements += self.add_classification_name_count_pie()
+
+        # self.elements += self.add_top_ip_impacted_by_attackers()
+        # self.elements += self.add_top_ip_impact_bar_chart()
+
+    def add_top_alarms(self):
+        elements = ElementList()
+        elements += Paragraph(
+            self.theme.replace_bold_with_font(
+                "El siguiente gráfico muestra el top 10 alarmas registradas, ordenadas por la cantidad de veces que se activaron."
+            ),
+            self.style(self.paragraph_styles.SUB_TEXT_NORMAL)
+        )
+
+        df = self.db.get_alarms_information()
+        if df.empty:
+            return []
+
+        df = df.groupby('AlarmRuleName', observed=False).size().reset_index(name='Count')
+        df = df.sort_values(by='Count', ascending=False)
+
+        elements += Bar(df.head(10), x_col='AlarmRuleName', y_col='Count', show_xticks=False, show_legend=True, xlabel="Nombre de la alarma", ylabel="Número de activaciones").plot()
+        elements += Paragraph("Top 10 alarmas que más se activan", self.style(self.paragraph_styles.TEXT_GRAPHIC))
+
+        return elements
+
+    def plot_priority_levels(self):
+        df = self.db.get_alarms_information()
+        df = df.dropna(subset=['AlarmPriority'])
+        df['AlarmDate'] = pd.to_datetime(df['AlarmDate']).dt.floor('d')
+
+        df['PriorityLevel'] = pd.cut(
+            df['AlarmPriority'],
+            bins=[-1, 50, 75, 100],
+            labels=['Low Priority', 'Medium Priority', 'High Priority']
+        )
+
+        df = df.groupby(['AlarmDate', 'PriorityLevel'], observed=False).size().reset_index(name='Counts')
+
+        figure = Line(
+            df,
+            x_col='AlarmDate',
+            y_col='Counts',
+            category_col='PriorityLevel',
+            title='Histograma de Activación de Alarmas por Nivel de Prioridad',
+            show_legend=True,
+            show_max_annotate=True,
+            axis_labels=True,
+        ).plot()
+
+        return [figure]
+
+    def _alarm_activation_line_graph(self, chunk: bool = False):
+        df = self.db.get_alarms_information()
+        
+        if df.empty:
+            return []
+        
+        df['AlarmDate'] = pd.to_datetime(df['AlarmDate']).dt.floor('d')
+        df = df.groupby(['AlarmDate', 'AlarmRuleName', 'AlarmPriority'], observed=False).size().reset_index(name='Counts')
+
+        priority = 50
+        low_priority = df[df['AlarmPriority'] < priority].groupby('AlarmDate', observed=False)['Counts'].sum().reset_index()
+        low_priority['AlarmRuleName'] = 'Low Priority'
+
+        df = df[df['AlarmPriority'] >= priority]
+        df = pd.concat([df, low_priority], ignore_index=True)
+
+        if chunk:
+            full_figure = Line(
+                df,
+                x_col='AlarmDate',
+                y_col='Counts',
+                category_col='AlarmRuleName',
+                title='Histograma de Activación de Alarmas (Completo)',
+                show_legend=True,
+                show_max_annotate=True,
+                axis_labels=True,
+            ).plot()
+
+            return [full_figure]
+
+        alarm_counts = df.groupby('AlarmRuleName', observed=False)['Counts'].sum().reset_index()
+        alarm_counts = alarm_counts.sort_values(by='Counts', ascending=False)
+
+        chunk_size = 10
+        alarm_names_chunks = [alarm_counts.iloc[i:i + chunk_size]['AlarmRuleName'].tolist() for i in range(0, len(alarm_counts), chunk_size)]
+
+        figures = []
+        for chunk in alarm_names_chunks:
+            chunk_df = df[df['AlarmRuleName'].isin(chunk)].sort_values(by='AlarmDate')
+            figure = Line(
+                chunk_df,
+                x_col='AlarmDate',
+                y_col='Counts',
+                category_col='AlarmRuleName',
+                title='Distribución de Alarmas y Prioridad a lo Largo del Tiempo',
+                show_legend=True,
+                show_max_annotate=True,
+                axis_labels=True,
+            )
+            figures.append(figure.plot())
+
+        return figures
 
     def add_alarm_status_table(self):
         elements = ElementList()
@@ -535,7 +730,7 @@ class GeneralTemplate:
         column_names = ['Clasificación', 'Cantidad']
         table_style = self.style(self.tables_styles.DEFAULT)
         
-        df = next(q.run() for q in self.queries if q._id == "8b47b29f-0dae-4f07-ace0-de0d138ef8ae")
+        df = next(q.run() for q in self.queries if q._id == "classification_name_count")
         df['doc_count'] = pd.to_numeric(df['doc_count'], errors='coerce')
         df['doc_count'] = df['doc_count'].apply(lambda x: format_number(x, locale='es_ES') if pd.notnull(x) else 'N/A')
 
@@ -573,7 +768,7 @@ class GeneralTemplate:
         )
 
         # Crear el gráfico de pastel
-        df = next(q.run() for q in self.queries if q._id == "8b47b29f-0dae-4f07-ace0-de0d138ef8ae")
+        df = next(q.run() for q in self.queries if q._id == "classification_name_count")
         pie_chart = Pie(df, 'key', 'doc_count', title=None, min_pct=5, other_label='Otros', legend_title="Distribución de eventos por tipo").plot()
         elements += pie_chart
         
@@ -619,7 +814,7 @@ class GeneralTemplate:
         }
         
         # Ejecutar la consulta y formatear los datos
-        df = next(q.run() for q in self.queries if q._id == "7f43c88b-60a0-444a-93f9-ef80cb8473f8")
+        df = next(q.run() for q in self.queries if q._id == "top_ip_impacted_by_attackers")
         df = df.nlargest(10, 'count')
         
         # Seleccionar y renombrar columnas
@@ -650,8 +845,9 @@ class GeneralTemplate:
         elements += Paragraph(description_text, self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
 
         # Seleccionar las 10 IPs más impactadas
-        df = next(q.run() for q in self.queries if q._id == "7f43c88b-60a0-444a-93f9-ef80cb8473f8")
-        top_ips = df.nlargest(10, 'count')
+        df = next(q.run() for q in self.queries if q._id == "top_ip_impacted_by_attackers")
+        top_ips = df.nlargest(10, 'doc_count')
+        print(top_ips)
 
         # Crear el gráfico de barras
         bar_chart = Bar(
@@ -664,189 +860,7 @@ class GeneralTemplate:
         elements += bar_chart
 
         # Añadir el título y la descripción del gráfico
-        elements += Paragraph("Top 10 IPs Impactadas por Ataques", self.style(self.paragraph_styles.TEXT_GRAPHIC))
+        elements += Paragraph("Top 10 IPs Más Impactadas por Ataques", self.style(self.paragraph_styles.TEXT_GRAPHIC))
         elements += Spacer(0, 1 * cm)
 
         return elements
-
-
-    def key_performance_indicators(self):
-        elements = ElementList()
-
-        # Generar y formatear los datos de los KPIs
-        alarms_count = format_number(self.db.get_alarm_count(), "es_ES")
-        events_count = format_number(next(q.run() for q in self.queries if q._id == "get_events_count")["total"][0], "es_ES")
-        logs_count = format_number(next(q.run() for q in self.queries if q._id == "get_logs_count")["total"][0], "es_ES")
-
-        # Añadir título y descripción de los KPIs
-        elements += Paragraph(
-            self.theme.replace_bold_with_font(
-                """
-                Indicadores Clave de Rendimiento (KPIs)
-                """
-            ),
-            self.style(self.paragraph_styles.TITLE_2)
-        )
-
-        elements += Paragraph(
-            self.theme.replace_bold_with_font(
-                """
-                Los Indicadores Clave de Rendimiento (KPIs) son métricas esenciales que nos permiten medir la eficiencia y efectividad de nuestras operaciones de monitoreo de seguridad. A continuación, se presentan los tres KPIs principales para el período analizado:
-                """
-            ),
-            self.style(self.paragraph_styles.SUB_TEXT_NORMAL)
-        )
-
-        kpi_items = [
-            "**Total de Alarmas Generadas**: Refleja el volumen total de alarmas que el sistema de monitoreo ha detectado y registrado. Esta métrica es crucial para entender la carga de trabajo y la eficiencia del sistema de detección de amenazas.",
-            "**Total de Eventos Registrados**: Indica la cantidad de eventos que han sido registrados en el sistema, proporcionando una visión general del nivel de actividad y posibles incidentes de seguridad.",
-            "**Total de Logs Procesados**: Muestra la cantidad de logs que el sistema ha procesado, lo cual es vital para evaluar la cobertura y la profundidad del monitoreo de seguridad."
-        ]
-
-        kpi_paragraphs = [Paragraph(self.theme.replace_bold_with_font(item), self.style(self.paragraph_styles.SUB_LIST)) for item in kpi_items]
-        elements += ListElement(kpi_paragraphs, bulletFontName=self.font_names.ARIALNARROW.value, bulletType='1', bulletFormat='%s.', leftIndent=-0.5 * cm).render()
-
-        # Crear y añadir el gráfico de KPIs
-        elements += Spacer(0, -1 * cm)
-        elements += KPI([alarms_count, events_count, logs_count], ["Alarmas", "Eventos", "Logs"], layout="rect", rounded=False).plot()
-
-        elements += Spacer(0, 1 * cm)
-
-        return elements
-
-    def run(self):
-        # Agregar portada e introducción
-        self.logger.debug("Añadiendo portada al informe e introducción")
-
-        self.elements += cover(self.config, self.metadata, self.theme)
-        self.elements += introduction(self.theme)
-
-        # Sección de Indicadores Clave de Rendimiento
-        self.elements += Paragraph(self.theme.replace_bold_with_font("Contenido").upper(), self.style(self.paragraph_styles.TITLE_1))
-        self.elements += Paragraph("1. Indicadores Clave de Rendimiento", self.style(self.paragraph_styles.TITLE_2))
-
-        self.elements += self.key_performance_indicators()
-
-        # self.elements += self.add_table_alarm_distribution_by_entity_and_state()
-        # self.elements += self.add_ttd_ttr_by_month_table_with_description()
-        # self.elements += self.add_ttd_ttr_by_msgclassname_table_with_description()
-
-        # # # Sección de Análisis de Eventos
-        # self.elements += Paragraph("2. Análisis de Eventos", self.style(self.paragraph_styles.TITLE_2))
-
-        # self.elements += self.add_event_distribution()
-        # self.elements += self.add_event_distribution_by_priority()
-        # self.elements += self.add_event_distribution_by_class()
-
-        # # Sección de Análisis de Alarmas
-        # self.elements += Paragraph("3. Análisis de Alarmas", self.style(self.paragraph_styles.TITLE_2))
-
-        # self.elements += self.add_alarm_status_table()
-        # self.elements += self.add_alarm_trends_with_description()
-        # self.elements += self.add_top_alarms()
-
-        # self.elements += self.add_classification_name_count_table()
-        # self.elements += self.add_classification_name_count_pie()
-
-        # self.elements += self.add_top_ip_impacted_by_attackers()
-        # self.elements += self.add_top_ip_impact_bar_chart()
-
-    def add_top_alarms(self):
-        elements = ElementList()
-        elements += Paragraph(
-            self.theme.replace_bold_with_font(
-                "El siguiente gráfico muestra el top 10 alarmas registradas, ordenadas por la cantidad de veces que se activaron."
-            ),
-            self.style(self.paragraph_styles.SUB_TEXT_NORMAL)
-        )
-
-        df = self.db.get_alarms_information()
-        if df.empty:
-            return []
-
-        df = df.groupby('AlarmRuleName', observed=False).size().reset_index(name='Count')
-        df = df.sort_values(by='Count', ascending=False)
-
-        elements += Bar(df.head(10), x_col='AlarmRuleName', y_col='Count', show_xticks=False, show_legend=True, xlabel="Nombre de la alarma", ylabel="Número de activaciones").plot()
-        elements += Paragraph("Top 10 alarmas que más se activan", self.style(self.paragraph_styles.TEXT_GRAPHIC))
-
-        return elements
-
-    def plot_priority_levels(self):
-        df = self.db.get_alarms_information()
-        df = df.dropna(subset=['AlarmPriority'])
-        df['AlarmDate'] = pd.to_datetime(df['AlarmDate']).dt.floor('d')
-
-        df['PriorityLevel'] = pd.cut(
-            df['AlarmPriority'],
-            bins=[-1, 50, 75, 100],
-            labels=['Low Priority', 'Medium Priority', 'High Priority']
-        )
-
-        df = df.groupby(['AlarmDate', 'PriorityLevel'], observed=False).size().reset_index(name='Counts')
-
-        figure = Line(
-            df,
-            x_col='AlarmDate',
-            y_col='Counts',
-            category_col='PriorityLevel',
-            title='Histograma de Activación de Alarmas por Nivel de Prioridad',
-            show_legend=True,
-            show_max_annotate=True,
-            axis_labels=True,
-        ).plot()
-
-        return [figure]
-
-    def _alarm_activation_line_graph(self, chunk: bool = False):
-        df = self.db.get_alarms_information()
-        
-        if df.empty:
-            return []
-        
-        df['AlarmDate'] = pd.to_datetime(df['AlarmDate']).dt.floor('d')
-        df = df.groupby(['AlarmDate', 'AlarmRuleName', 'AlarmPriority'], observed=False).size().reset_index(name='Counts')
-
-        priority = 50
-        low_priority = df[df['AlarmPriority'] < priority].groupby('AlarmDate', observed=False)['Counts'].sum().reset_index()
-        low_priority['AlarmRuleName'] = 'Low Priority'
-
-        df = df[df['AlarmPriority'] >= priority]
-        df = pd.concat([df, low_priority], ignore_index=True)
-
-        if chunk:
-            full_figure = Line(
-                df,
-                x_col='AlarmDate',
-                y_col='Counts',
-                category_col='AlarmRuleName',
-                title='Histograma de Activación de Alarmas (Completo)',
-                show_legend=True,
-                show_max_annotate=True,
-                axis_labels=True,
-            ).plot()
-
-            return [full_figure]
-
-        alarm_counts = df.groupby('AlarmRuleName', observed=False)['Counts'].sum().reset_index()
-        alarm_counts = alarm_counts.sort_values(by='Counts', ascending=False)
-
-        chunk_size = 10
-        alarm_names_chunks = [alarm_counts.iloc[i:i + chunk_size]['AlarmRuleName'].tolist() for i in range(0, len(alarm_counts), chunk_size)]
-
-        figures = []
-        for chunk in alarm_names_chunks:
-            chunk_df = df[df['AlarmRuleName'].isin(chunk)].sort_values(by='AlarmDate')
-            figure = Line(
-                chunk_df,
-                x_col='AlarmDate',
-                y_col='Counts',
-                category_col='AlarmRuleName',
-                title='Distribución de Alarmas y Prioridad a lo Largo del Tiempo',
-                show_legend=True,
-                show_max_annotate=True,
-                axis_labels=True,
-            )
-            figures.append(figure.plot())
-
-        return figures

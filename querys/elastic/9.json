@@ -1,8 +1,8 @@
 {
   "id": "get_logs_count",
   "metadata": {
-    "name": "Events Histogram by Priority",
-    "description": "Realiza una búsqueda y agregación en los índices de logs para detectar los eventos de ataques más recientes, filtrando por ubicación impactada, IP impactada y tipo de mensaje."
+    "name": "",
+    "description": ""
   },
   "processing_policy": {
     "mode": "single",

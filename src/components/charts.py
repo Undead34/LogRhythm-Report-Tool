@@ -11,6 +11,7 @@ import numpy as np
 from matplotlib.ticker import PercentFormatter
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.gridspec import GridSpec
+from matplotlib.dates import AutoDateLocator, ConciseDateFormatter
 
 from typing import Optional
 import random
@@ -154,21 +155,22 @@ class Historigram(BaseChart):
         df[x_col] = pd.to_datetime(df[x_col])
         
         # Agrupar los datos según la frecuencia
-        df = df.set_index(x_col).resample(freq).sum().reset_index()
-        
+        df.set_index(x_col, inplace=True)
+        df_resampled = df.resample(freq).sum(numeric_only=True).reset_index()
+
         colors = ['#1f77b4']  # Paleta de colores simple
 
         plt.figure(figsize=(18, 10))
-        plt.bar(df[x_col], df[y_col], color=colors[0])
+        plt.bar(df_resampled[x_col], df_resampled[y_col], color=colors[0])
 
-        max_count = df[y_col].max()
-        max_date = df[x_col][df[y_col].idxmax()]
+        max_count = df_resampled[y_col].max()
+        max_date = df_resampled[x_col][df_resampled[y_col].idxmax()]
         max_count_formatted = format_number(max_count, locale='es_ES')
 
         plt.annotate(f'Max: {max_count_formatted}', (max_date, max_count), textcoords="offset points", xytext=(0, 10), ha='center', color='red')
 
         # Configurar el eje X
-        self.configure_x_axis(plt.gca(), df[x_col])
+        self.configure_x_axis(plt.gca(), df_resampled[x_col])
 
         if title:
             plt.title(title)
@@ -195,7 +197,6 @@ class Historigram(BaseChart):
         if len(x_data) > max_labels:
             ticks_to_use = x_data[::len(x_data) // max_labels]
             ax.set_xticks(ticks_to_use)
-
 
 class Pie(BaseChart):
     def __init__(self, df: pd.DataFrame, category_col: str, value_col: str, title: Optional[str] = None,
