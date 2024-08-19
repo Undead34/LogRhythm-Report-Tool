@@ -30,7 +30,6 @@ class Package:
         try:
             self._validate_query_parameters()
             index_str = self._format_index()
-            self.logger.info(f"Ejecutando consulta en el índice: {index_str}")
             response = self._execute_query(index_str)
 
             if not response:

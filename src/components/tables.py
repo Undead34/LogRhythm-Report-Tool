@@ -1,8 +1,6 @@
 from reportlab.platypus import Table as RLTable, Paragraph, Indenter
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.lib.pagesizes import LETTER
-from reportlab.lib.units import cm
-from reportlab.lib import colors
 import pandas as pd
 from typing import List, Optional, Dict
 from src.themes.theme import CustomTableStyle, CustomTableStyles, Theme

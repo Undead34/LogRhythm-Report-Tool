@@ -8,7 +8,7 @@ class Templates():
         template = GeneralTemplate(self.report, self.queries, self.db, self.metadata, self.config)
 
         if name == "other": # example for some templates
-            pass # Rempleze template here!
+            pass # Remplaze template here!
 
         template.run()
 

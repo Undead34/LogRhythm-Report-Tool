@@ -1,25 +1,27 @@
 {
-  "$schema": [
-    {
-      "id": "<UUID único>",
-      "name": "<Nombre de la consulta>",
-      "mode": "<Modo de la consulta (por ejemplo, 'single', 'multi')>",
-      "index": [
-        "<Nombre del índice o patrones de índices (por ejemplo, 'logs-*')>"
-      ],
-      "description": "<Descripción de la consulta>",
-      "aggregation_result": true,
-      "type": "1",
-      "query": {
-        // En los campos gte y lte, se puede usar estas plantillas para remplazar con el periodo del reporte.
-        "timestamp_field": {
-          "gte": "{{gte}}", // Fecha de inicio en epoch millis (será reemplazada)
-          "lte": "{{lte}}", // Fecha de fin en epoch millis (será reemplazada)
-          "format": "epoch_millis" // Formato de fecha en epoch millis
-        },
-        // Los should con match entityId, se puede aplicar este template string para remplazarlos por los ID de las entidades selecionadas.
-        "should": [{ "match": { "entityId": "{{entity_ids}}" } }]
-      }
+  "id": "string",
+  "metadata": {
+    "name": "string",
+    "description": "string"
+  },
+  "processing_policy": {
+    "mode": "string",
+    "index": ["string"],
+    "date_range_replacement": {
+      "field": "string",
+      "gte_placeholder": "string",
+      "lte_placeholder": "string",
+      "format": "string"
+    },
+    "entity_ids_replacement": {
+      "placeholder": "string",
+      "type": "query_string | term",
+      "field": "string"
     }
-  ]
+  },
+  "result_processing": {
+    "columns": ["string"],
+    "visualizations": []
+  },
+  "query": {}
 }

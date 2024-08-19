@@ -3,10 +3,10 @@ import pandas as pd
 import json
 
 from .cli.questions import (
-    select_entities, 
-    select_date_range, 
-    customize_signature, 
-    get_client_details, 
+    select_entities,
+    select_date_range,
+    customize_signature,
+    get_client_details,
     get_output_details,
 )
 
@@ -31,7 +31,7 @@ class Config:
         config = Config()
 
         # Modo debug: usar valores predefinidos
-        start, end = datetime(2024, 6, 1), datetime(2024, 6, 30)
+        start, end = datetime(2024, 7, 1), datetime(2024, 7, 31)
         entities = pd.DataFrame(data={'EntityID': [4], 'FullName': ['Farmatodo']})
         signature = DEFAULT_SIGNATURE.copy()
         client_name, client_logo = 'Farmatodo', './assets/images/clients/farmatodo/logo.png'
@@ -136,7 +136,6 @@ def run_main_program(args, config: Config):
 
     # Generate Report
     logger.info("Generando el reporte...")
-    
 
     report = skeleton.Report(config.output_file)
     templates = Templates(report, queries, database, signature, config)

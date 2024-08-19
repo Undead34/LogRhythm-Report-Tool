@@ -1,20 +1,20 @@
-from reportlab.platypus import Image
-from reportlab.lib.units import cm
-import matplotlib.pyplot as plt
-import pandas as pd
 import os
-from babel.numbers import format_number
-import matplotlib.dates as mdates
+import random
+from typing import Optional
 from uuid import uuid4 as v4
-import seaborn as sns
+
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.ticker import PercentFormatter
+import pandas as pd
+import seaborn as sns
+from babel.numbers import format_number
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.gridspec import GridSpec
-from matplotlib.dates import AutoDateLocator, ConciseDateFormatter
-
-from typing import Optional
-import random
+from matplotlib.patches import FancyBboxPatch
+from matplotlib.ticker import PercentFormatter
+from reportlab.lib.units import cm
+from reportlab.platypus import Image, Spacer
 
 
 class BaseChart():
@@ -201,7 +201,7 @@ class Historigram(BaseChart):
 class Pie(BaseChart):
     def __init__(self, df: pd.DataFrame, category_col: str, value_col: str, title: Optional[str] = None,
                  explode: Optional[bool] = False, labels: Optional[bool] = True, legend: Optional[bool] = True,
-                 min_pct: Optional[float] = 1.0, other_label: Optional[str] = 'Others', legend_title: Optional[str] = None) -> None:
+                 min_pct: Optional[float] = 1.0, other_label: Optional[str] = 'Others', legend_title: Optional[str] = None, sort_legend: Optional[bool] = True) -> None:
         super().__init__()
         plt.figure(figsize=(12, 8))
         
@@ -222,12 +222,18 @@ class Pie(BaseChart):
         else:
             filtered_pct = pie_data_pct[mask].tolist()
         
+        if sort_legend:
+            # Ordenar los datos y porcentajes por valor de mayor a menor
+            sorted_indices = np.argsort(filtered_data.values)[::-1]
+            filtered_data = filtered_data.iloc[sorted_indices]
+            filtered_pct = np.array(filtered_pct)[sorted_indices]
+
         colors = self.get_palette(len(filtered_data))
         
         # Opcional: Explode para destacar las porciones del pastel
         explode_values = (0.1 if explode else 0) * np.ones(len(filtered_data))
         
-        wedges, texts, autotexts = plt.pie(
+        wedges, _, autotexts = plt.pie(
             filtered_data,
             autopct=lambda p: f'{p:.1f}%' if p >= min_pct else '',
             startangle=140,
@@ -252,8 +258,8 @@ class Pie(BaseChart):
                     y = autotext.get_position()[1]
                     # Mover las etiquetas hacia los bordes
                     angle = np.degrees(np.arctan2(y, x))
-                    x_edge = 0.6 * np.cos(np.radians(angle))
-                    y_edge = 0.6 * np.sin(np.radians(angle))
+                    x_edge = 0.7 * np.cos(np.radians(angle))
+                    y_edge = 0.7 * np.sin(np.radians(angle))
                     autotext.set_position((x_edge, y_edge))
                     autotext.set_horizontalalignment('center')
                     autotext.set_verticalalignment('center')
@@ -355,8 +361,11 @@ class Bubble(BaseChart):
         plt.xticks(rotation=45)
         plt.legend(title=color_col)
 
+
+
+
 class KPI(BaseChart):
-    def __init__(self, kpi_values, kpi_labels, kpi_units=None, layout='centered', rounded=True) -> None:
+    def __init__(self, kpi_values, kpi_labels, kpi_units=None, layout='centered', rounded=True, title=None, subtitle=None) -> None:
         if kpi_units is None:
             kpi_units = [""] * len(kpi_values)
         
@@ -368,15 +377,20 @@ class KPI(BaseChart):
             nrows = 1
             ncols = len(kpi_values)
         else:
-            # Para layout cuadrado, intentar una distribución cuadrada
             nrows = int(len(kpi_values) ** 0.5)
             ncols = (len(kpi_values) + nrows - 1) // nrows
 
         # Crear una cuadrícula con GridSpec
-        gs = GridSpec(nrows, ncols, figure=fig, wspace=0.1, hspace=0.1) # Reducir wspace y hspace para menos separación
+        gs = GridSpec(nrows, ncols, figure=fig, wspace=0.1, hspace=0.1)
         
         # Obtener colores
         colors = self.get_palette(len(kpi_values))
+
+        # Añadir título y subtítulo si están presentes
+        if title:
+            fig.suptitle(title, fontsize=16, fontweight='bold')
+        if subtitle:
+            plt.figtext(0.5, 0.94, subtitle, ha='center', fontsize=12, color='gray')
 
         # Añadir los cuadros de KPI
         for i, (value, label, unit, color) in enumerate(zip(kpi_values, kpi_labels, kpi_units, colors)):
@@ -385,16 +399,76 @@ class KPI(BaseChart):
             ax = fig.add_subplot(gs[row, col])
             ax.axis('off')
 
-            bbox_params = dict(facecolor=color, edgecolor='none', pad=10 if rounded else 30)  # Aumentar pad para cuadros más grandes
-            if rounded:
-                bbox_params['boxstyle'] = 'round,pad=0.3'  # Ajustar pad para bordes redondeados
+            # Crear el cuadro con FancyBboxPatch
+            bbox = FancyBboxPatch(
+                (0.25, 0.4), 0.5, 0.001, boxstyle="round,pad=0.2" if rounded else "square,pad=0.2",
+                linewidth=1, facecolor=color, edgecolor='none'
+            )
+            ax.add_patch(bbox)
             
-            ax.text(0.5, 0.6, f"{unit}{value}", ha='center', va='center', fontsize=20, fontweight='bold', color='white', bbox=bbox_params)
-            ax.text(0.5, 0.3, label, ha='center', va='center', fontsize=15, color='gray')
+            # Añadir texto del valor y la etiqueta
+            ax.text(0.5, 0.45, f"{unit}{value}", ha='center', va='center', fontsize=20, fontweight='bold', color='white', transform=ax.transAxes)
+            ax.text(0.5, 0.3, label, ha='center', va='center', fontsize=15, color='gray', transform=ax.transAxes)
 
     def plot(self):
         output = self._save_chart()
         plt.savefig(output, format='png', dpi=400, bbox_inches='tight', transparent=True)
         plt.close()
 
-        return Image(output, width=15.59 * cm, height=7.52 * cm, hAlign="CENTER")
+        return [
+            Spacer(0, -12),
+            Image(output, width=15.59 * cm, height=7.52 * cm, hAlign="CENTER"),
+            Spacer(0, 3.52 * -cm)
+        ]
+
+
+
+
+class ComparisonLine(BaseChart):
+    def __init__(self, success_df: pd.DataFrame, failure_df: pd.DataFrame, x_col: str, y_col: str, title: Optional[str] = None, xlabel: Optional[str] = None, ylabel: Optional[str] = 'Count', show_legend: bool = True) -> None:
+        super().__init__()
+
+        plt.figure(figsize=(18, 10))
+        sns.set_theme(style="whitegrid")
+
+        colors = sns.color_palette("viridis", 2)
+
+        # Convertir la columna de fechas a formato datetime
+        success_df[x_col] = pd.to_datetime(success_df[x_col])
+        failure_df[x_col] = pd.to_datetime(failure_df[x_col])
+
+        # Graficar los datos de éxito y fallo de autenticación
+        sns.lineplot(x=success_df[x_col], y=success_df[y_col], label='Authentication Success', color=colors[0], linewidth=2.5)
+        sns.lineplot(x=failure_df[x_col], y=failure_df[y_col], label='Authentication Failure', color=colors[1], linewidth=2.5)
+
+        if title:
+            plt.title(title, fontsize=20)
+        if xlabel:
+            plt.xlabel(xlabel, fontsize=16)
+        if ylabel:
+            plt.ylabel(ylabel, fontsize=16)
+        if show_legend:
+            plt.legend(title='Category', fontsize=14)
+
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+
+class StackedBarChart(BaseChart):
+    def __init__(self, df: pd.DataFrame, x_col: str, y_col: str, category_col: str, title: Optional[str] = None, xlabel: Optional[str] = None, ylabel: Optional[str] = None) -> None:
+        super().__init__()
+
+        pivot_df = df.pivot_table(index=x_col, columns=category_col, values=y_col, aggfunc='sum', fill_value=0)
+        colors = self.get_palette(len(pivot_df.columns))
+
+        pivot_df.plot(kind='bar', stacked=True, figsize=(18, 10), color=colors)
+        
+        if title:
+            plt.title(title)
+        if xlabel:
+            plt.xlabel(x_col)
+        if ylabel:
+            plt.ylabel(y_col)
+        plt.legend(title=category_col)
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+

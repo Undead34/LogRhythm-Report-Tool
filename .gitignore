@@ -8,6 +8,7 @@ output/
 examples/
 .tmp
 *.tmp
+*.tmp.py
 .temp
 *.temp
 # C extensions
