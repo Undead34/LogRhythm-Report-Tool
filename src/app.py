@@ -31,10 +31,13 @@ class Config:
         config = Config()
 
         # Modo debug: usar valores predefinidos
-        start, end = datetime(2024, 7, 1), datetime(2024, 7, 31)
-        entities = pd.DataFrame(data={'EntityID': [4], 'FullName': ['Farmatodo']})
+        start, end = datetime(2024, 8, 1), datetime(2024, 8, 31)
+        entities = pd.DataFrame(data=[
+            {'EntityID': 14, 'FullName': ['ENSA']},
+            {'EntityID': 15, 'FullName': ['ENSA/ENSA-TO']},
+            {'EntityID': 16, 'FullName': ['ENSA/ENSA TI']}])
         signature = DEFAULT_SIGNATURE.copy()
-        client_name, client_logo = 'Farmatodo', './assets/images/clients/farmatodo/logo.png'
+        client_name, client_logo = 'ENSA', './assets/images/clients/ensa/logo.png'
         signature["client_name"] = client_name
         output_path, filename_format = "./output", "{client_name} - {stime}"
         output_file = get_file_name(output_path, filename_format, signature)

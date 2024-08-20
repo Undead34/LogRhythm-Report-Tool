@@ -1,0 +1,81 @@
+{
+  "id": "agg_logs_by_source_type",
+  "metadata": {
+    "name": "Aggregation Query by Source Type",
+    "description": "This query aggregates logs based on the source type, filtered by specific entity IDs and date range."
+  },
+  "processing_policy": {
+    "mode": "single",
+    "index": [
+      "logs-*"
+    ],
+    "date_range_replacement": {
+      "field": "normalDate",
+      "gte_placeholder": "{{gte}}",
+      "lte_placeholder": "{{lte}}",
+      "format": "epoch_millis"
+    },
+    "entity_ids_replacement": {
+      "placeholder": "{{entity_ids}}",
+      "type": "query_string",
+      "field": "entityId"
+    }
+  },
+  "result_processing": {
+    "columns": [],
+    "visualizations": []
+  },
+  "query": {
+    "aggs": {
+      "3": {
+        "terms": {
+          "field": "msgSourceTypeName",
+          "size": 20,
+          "order": {
+            "_count": "desc"
+          }
+        }
+      }
+    },
+    "size": 0,
+    "stored_fields": [
+      "*"
+    ],
+    "docvalue_fields": [
+      {
+        "field": "insertedDate",
+        "format": "date_time"
+      },
+      {
+        "field": "logDate",
+        "format": "date_time"
+      },
+      {
+        "field": "normalDate",
+        "format": "date_time"
+      }
+    ],
+    "query": {
+      "bool": {
+        "must": [
+          {
+            "query_string": {
+              "query": "{{entity_ids}}",
+              "analyze_wildcard": true,
+              "default_field": "*"
+            }
+          },
+          {
+            "range": {
+              "normalDate": {
+                "gte": "{{gte}}",
+                "lte": "{{lte}}",
+                "format": "epoch_millis"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

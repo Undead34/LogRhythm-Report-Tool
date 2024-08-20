@@ -60,11 +60,14 @@ class BaseChart():
                 return colors + additional_colors
 
 class Bar(BaseChart):
-    def __init__(self, df: pd.DataFrame, x_col: str, y_col: str, title: Optional[str] = None, orientation: str = "vertical", show_xticks: bool = True, show_legend: bool = True, legend_title: str = "Categories", axis_labels: bool = True, xlabel = "", ylabel = "", xtick_rotation: int = 0) -> None:
+    def __init__(self, df: pd.DataFrame, x_col: str, y_col: str, title: Optional[str] = None, orientation: str = "vertical", 
+                 show_xticks: bool = True, show_legend: bool = True, legend_title: str = "Categories", 
+                 axis_labels: bool = True, xlabel = "", ylabel = "", xtick_rotation: int = 0, 
+                 log_scale: bool = False) -> None:  # Añadir parámetro log_scale
         super().__init__()
 
         # Formatear los nombres en el eje y con los conteos
-        df[x_col] = df.apply(lambda row: f"{row[x_col]} ({format_number(row[y_col], locale='es_ES')})", axis=1)
+        df[x_col] = df.apply(lambda row: f"{row[x_col]}", axis=1)
 
         colors = self.get_palette(len(df))
         
@@ -74,11 +77,15 @@ class Bar(BaseChart):
             if axis_labels:
                 plt.xlabel(ylabel if ylabel != "" else y_col)
                 plt.ylabel(xlabel if xlabel != "" else xlabel)
+            if log_scale:
+                plt.xscale("log")  # Aplicar escala logarítmica en el eje X para gráfico horizontal
         else:
             bars = plt.bar(df[x_col], df[y_col], color=colors)
             if axis_labels:
                 plt.xlabel(xlabel if xlabel != "" else xlabel)
                 plt.ylabel(ylabel if ylabel != "" else y_col)
+            if log_scale:
+                plt.yscale("log")  # Aplicar escala logarítmica en el eje Y para gráfico vertical
             if not show_xticks:
                 plt.xticks([])
         
@@ -93,6 +100,7 @@ class Bar(BaseChart):
             plt.xticks(rotation=xtick_rotation)
         
         plt.tight_layout()
+
 
 class Line(BaseChart):
     def __init__(self, df: pd.DataFrame, x_col: str, y_col: str, title: Optional[str] = None, category_col: Optional[str] = None, show_legend: bool = True, show_max_annotate: bool = True, axis_labels: bool = True) -> None:

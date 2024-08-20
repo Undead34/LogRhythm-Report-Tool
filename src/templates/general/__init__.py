@@ -13,7 +13,7 @@ from reportlab.platypus import Paragraph, Spacer, PageBreak
 # Local application imports
 from src.utils import ElementList, logger
 from src.themes import theme
-from src.components import Table, ComparisonLine, KPI
+from src.components import Table, ComparisonLine, KPI, Bar
 from .utils import get_human_readable_period, aux_parse_12
 from .canvas import Canvas
 from .first_pages import introduction, cover
@@ -44,9 +44,8 @@ class GeneralTemplate:
         
         self.elements += cover(self.config, self.metadata, self.theme)
         self.elements += introduction(self.theme)
-        # self.elements += self.add_state_of_siem()
-
-        # self.elements += self.add_threat_analysis()
+        self.elements += self.add_state_of_siem()
+        self.elements += self.add_threat_analysis()
         # self.elements += self.add_incident_response()
         # self.elements += self.add_trends_and_comparatives()
         # self.elements += self.add_recommendations()
@@ -55,6 +54,7 @@ class GeneralTemplate:
         # MS Windows Event Logging XML - Application
         # MS Windows Event Logging XML - Security
         # MS Windows Event Logging XML - System
+
 
     def add_state_of_siem(self):
         elements = ElementList()
@@ -65,27 +65,52 @@ class GeneralTemplate:
 
         # Introducción del Estado General del SIEM
         intro_text = f"""
-        Este es el estado general del Sistema de Información y Monitoreo (SIEM). 
-        Proporciona una visión detallada del rendimiento y las incidencias actuales.
+        Este es el estado general del Sistema de Información y Monitoreo (SIEM) para el periodo comprendido 
+        entre {start_date} y {end_date}. Durante este periodo, hemos recopilado y procesado una gran cantidad de logs, 
+        de los cuales hemos distinguido entre eventos de seguridad y otros tipos de logs relacionados. Esta sección 
+        proporciona una visión detallada de cómo se distribuyen los eventos según su tipo de fuente.
         """
         elements += Paragraph(intro_text, self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
 
-        # Obtención de datos de la base de datos
-        alarms_count = self.db.get_alarm_count()
-        events_count = next(q.run() for q in self.queries if q._id == "get_events_count")["total"][0]
-        logs_count = next(q.run() for q in self.queries if q._id == "get_logs_count")["total"][0]
+        # Obtención de la agregación por tipo de fuente
+        events = next(q.run() for q in self.queries if q._id == "agg_logs_by_source_type")
 
-        # Resumen de Indicadores Clave
-        data = pd.DataFrame(columns=["Descripción", "Valor"], data=[
-            ["Disponibilidad del Sistema", "99.9%"],
-            ["Logs Procesados", format_number(logs_count, locale='es')],
-            ["Eventos Procesados", format_number(events_count, locale='es')],
-            ["Alarmas Activadas", format_number(alarms_count, locale='es')],
-        ])
+        # Preparación de los datos para la tabla
+        data = []
+
+        for _, row in events.iterrows():
+            source_type = row["key"]
+            count = row["doc_count"]
+            data.append([f"Logs de {source_type}", format_number(count, locale='es')])
+
+        # Añadir el total de logs procesados
+        total_logs = events["doc_count"].sum()
+        total_events = next(q.run() for q in self.queries if q._id == "count_events")
+        print(total_events)
+        data.append(["Total de Logs Procesados", format_number(total_logs, locale='es')])
+        # data.append(["Total de Eventos", format_number(total_events, locale='es')])
+
+        # Crear y añadir la tabla
+        df = pd.DataFrame(columns=["Descripción", "Valor"], data=data)
 
         table_style = self.style(self.tables_styles.DEFAULT)
-        table = Table(data, style=table_style, mode='fit-full', indent=1.2 * cm, subtract=1.2 * cm)
+        table = Table(df, style=table_style, mode='fit-full', indent=1.2 * cm, subtract=1.2 * cm)
+        elements += Spacer(0, 0.5 * cm)
         elements += table.render()
+        elements += Spacer(0, 0.5 * cm)
+
+        # Explicación sobre los eventos versus logs
+        explanation_text = f"""
+        A lo largo del periodo analizado, el SIEM ha gestionado una diversidad de fuentes de logs, 
+        desde dispositivos de red como Fortinet Fortigate y Trend Micro, hasta sistemas operativos 
+        y aplicaciones. La clasificación de estos logs es crucial para entender la naturaleza de los eventos 
+        que podrían requerir atención inmediata."""
+        elements += Paragraph(explanation_text, self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
+        
+        # Asegúrate de convertir la columna 'key' a enteros si es posible
+        events["doc_count"] = pd.to_numeric(events["doc_count"], errors='coerce').fillna(0).astype(int)
+        # Ahora puedes utilizar la columna 'key' ya convertida en el gráfico de barras
+        elements += Bar(events, "key", y_col="doc_count", axis_labels=True, xlabel="Log Source Type", ylabel="Count", xtick_rotation=90).plot()
 
         elements += PageBreak()
 
@@ -98,6 +123,8 @@ class GeneralTemplate:
         
         elements += Paragraph("Durante el período de reporte, se detectaron varios tipos de amenazas. La siguiente tabla muestra la distribución del número de eventos de amenazas por tipo y su frecuencia relativa.", self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
 
+        log_source_name = "172.16.180.12 Fortigate v6.0"
+        
         # Obtención de datos de la base de datos
         data = next(q.run() for q in self.queries if q._id == "classification_name_count")
 
@@ -144,73 +171,73 @@ class GeneralTemplate:
 
         return elements
 
-    def add_incident_response(self):
-        style = self.style(self.paragraph_styles.SUB_TITLE_1)
-        elements = ElementList()
-        elements += Paragraph("Respuesta a Incidentes", style)
+    # def add_incident_response(self):
+    #     style = self.style(self.paragraph_styles.SUB_TITLE_1)
+    #     elements = ElementList()
+    #     elements += Paragraph("Respuesta a Incidentes", style)
 
-        elements += Paragraph("Desactivado temporalmente mientras se decide si el equipo del SOC va a poner los datos a mano o si simplemente no se añaden.", self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
+    #     elements += Paragraph("Desactivado temporalmente mientras se decide si el equipo del SOC va a poner los datos a mano o si simplemente no se añaden.", self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
 
-        elements += PageBreak()
+    #     elements += PageBreak()
 
-        return elements
+    #     return elements
 
-    def add_trends_and_comparatives(self):
-        style = self.style(self.paragraph_styles.SUB_TITLE_1)
-        elements = ElementList()
-        elements += Paragraph("Tendencias y Comparativas", style)
+    # def add_trends_and_comparatives(self):
+    #     style = self.style(self.paragraph_styles.SUB_TITLE_1)
+    #     elements = ElementList()
+    #     elements += Paragraph("Tendencias y Comparativas", style)
 
-        elements += Paragraph("En esta sección, se comparan los eventos procesados y los incidentes detectados durante el período actual con los períodos anteriores. Estas comparativas permiten identificar tendencias y evaluar la efectividad de las medidas implementadas.", self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
+    #     elements += Paragraph("En esta sección, se comparan los eventos procesados y los incidentes detectados durante el período actual con los períodos anteriores. Estas comparativas permiten identificar tendencias y evaluar la efectividad de las medidas implementadas.", self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
 
-        data = pd.DataFrame(columns=["Período", "Eventos Procesados", "Incidentes Detectados"], data=[
-            ["Julio 2024", format_number(1200000, locale='es'), "45"],
-            ["Junio 2024", format_number(1100000, locale='es'), "40"]
-        ])
-        table_style = self.style(self.tables_styles.DEFAULT)
-        table = Table(data, style=table_style, mode='fit-full', indent=1.2 * cm, subtract=1.2 * cm)
-        elements += table.render()
-        elements += Spacer(1, 12)
+    #     data = pd.DataFrame(columns=["Período", "Eventos Procesados", "Incidentes Detectados"], data=[
+    #         ["Julio 2024", format_number(1200000, locale='es'), "45"],
+    #         ["Junio 2024", format_number(1100000, locale='es'), "40"]
+    #     ])
+    #     table_style = self.style(self.tables_styles.DEFAULT)
+    #     table = Table(data, style=table_style, mode='fit-full', indent=1.2 * cm, subtract=1.2 * cm)
+    #     elements += table.render()
+    #     elements += Spacer(1, 12)
 
-        # Obtención de datos del histograma
-        histo_success_df = next(q.run() for q in self.queries if q._id == "msgClassName_authentication_success_histogram")
-        histo_failure_df = next(q.run() for q in self.queries if q._id == "msgClassName_authentication_failure_histogram")
+    #     # Obtención de datos del histograma
+    #     histo_success_df = next(q.run() for q in self.queries if q._id == "msgClassName_authentication_success_histogram")
+    #     histo_failure_df = next(q.run() for q in self.queries if q._id == "msgClassName_authentication_failure_histogram")
 
-        elements += ComparisonLine(histo_success_df, histo_failure_df, "key_as_string", "doc_count", title="Comparación de Eventos de Autenticación", xlabel="Fecha", ylabel="Cantidad de Eventos").plot()
-        elements += Spacer(1, 12)
+    #     elements += ComparisonLine(histo_success_df, histo_failure_df, "key_as_string", "doc_count", title="Comparación de Eventos de Autenticación", xlabel="Fecha", ylabel="Cantidad de Eventos").plot()
+    #     elements += Spacer(1, 12)
 
-        elements += PageBreak()
+    #     elements += PageBreak()
 
-        return elements
+    #     return elements
 
-    def add_recommendations(self):
-        style = self.style(self.paragraph_styles.SUB_TITLE_1)
-        elements = ElementList()
-        elements += Paragraph("Recomendaciones", style)
+    # def add_recommendations(self):
+    #     style = self.style(self.paragraph_styles.SUB_TITLE_1)
+    #     elements = ElementList()
+    #     elements += Paragraph("Recomendaciones", style)
         
-        elements += Paragraph("Basado en el análisis de los datos y la evaluación de las respuestas a incidentes, se proponen las siguientes recomendaciones para mejorar la seguridad y eficiencia del sistema.", self.style(self.paragraph_styles.TEXT_NORMAL))
+    #     elements += Paragraph("Basado en el análisis de los datos y la evaluación de las respuestas a incidentes, se proponen las siguientes recomendaciones para mejorar la seguridad y eficiencia del sistema.", self.style(self.paragraph_styles.TEXT_NORMAL))
 
-        data = pd.DataFrame(columns=["Descripción", "Valor"], data=[
-            ["Mejoras Propuestas", "Implementar autenticación multifactor en todos los sistemas"],
-            ["Áreas Prioritarias", "Fortalecer la capacitación de los empleados sobre phishing"]
-        ])
-        table_style = self.style(self.tables_styles.DEFAULT)
-        table = Table(data, style=table_style, mode='fit-full', indent=1.2 * cm, subtract=1.2 * cm)
-        elements += table.render()
-        elements += Spacer(1, 12)
+    #     data = pd.DataFrame(columns=["Descripción", "Valor"], data=[
+    #         ["Mejoras Propuestas", "Implementar autenticación multifactor en todos los sistemas"],
+    #         ["Áreas Prioritarias", "Fortalecer la capacitación de los empleados sobre phishing"]
+    #     ])
+    #     table_style = self.style(self.tables_styles.DEFAULT)
+    #     table = Table(data, style=table_style, mode='fit-full', indent=1.2 * cm, subtract=1.2 * cm)
+    #     elements += table.render()
+    #     elements += Spacer(1, 12)
 
-        return elements
+    #     return elements
 
-    def add_conclusion(self):
-        style = self.style(self.paragraph_styles.TITLE_2)
-        elements = ElementList()
-        elements += Paragraph("Conclusión", style)
+    # def add_conclusion(self):
+    #     style = self.style(self.paragraph_styles.TITLE_2)
+    #     elements = ElementList()
+    #     elements += Paragraph("Conclusión", style)
         
-        text = """
-        La operación del SIEM en Julio 2024 ha sido efectiva en detectar y mitigar amenazas, 
-        aunque se recomienda seguir mejorando las medidas preventivas y de respuesta.
-        """
-        elements += Paragraph(text, self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
-        elements += Spacer(1, 12)
+    #     text = """
+    #     La operación del SIEM en Julio 2024 ha sido efectiva en detectar y mitigar amenazas, 
+    #     aunque se recomienda seguir mejorando las medidas preventivas y de respuesta.
+    #     """
+    #     elements += Paragraph(text, self.style(self.paragraph_styles.SUB_TEXT_NORMAL))
+    #     elements += Spacer(1, 12)
 
-        return elements
+    #     return elements
 

@@ -1,0 +1,58 @@
+{
+  "id": "count_non_event_logs",
+  "metadata": {
+    "name": "Non-Event Log Count by Entity and Date Range",
+    "description": "This query counts the number of non-event logs that match specific entity IDs and a given date range. It is optimized to return only the total count of matching logs."
+  },
+  "processing_policy": {
+    "mode": "single",
+    "index": [
+      "logs-*"
+    ],
+    "date_range_replacement": {
+      "field": "normalDate",
+      "gte_placeholder": "{{gte}}",
+      "lte_placeholder": "{{lte}}",
+      "format": "epoch_millis"
+    },
+    "entity_ids_replacement": {
+      "placeholder": "{{entity_ids}}",
+      "type": "term",
+      "field": "entityId"
+    }
+  },
+  "result_processing": {
+    "columns": [
+      {
+        "_include_totals": "total"
+      }
+    ],
+    "visualizations": [],
+    "expect_empty_hits": true,
+    "include_totals": true
+  },
+  "query": {
+    "size": 0,
+    "query": {
+      "bool": {
+        "must": [
+          {
+            "term": {
+              "isEvent": false
+            }
+          },
+          {
+            "range": {
+              "normalDate": {
+                "gte": "{{gte}}",
+                "lte": "{{lte}}",
+                "format": "epoch_millis"
+              }
+            }
+          },
+          "{{entity_ids}}"
+        ]
+      }
+    }
+  }
+}
