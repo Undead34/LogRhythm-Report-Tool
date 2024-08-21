@@ -25,16 +25,26 @@ class Report():
         self.width, self.height = LETTER
         self.elements = ElementList()
         self.canvasmaker = None
+        self.loaded_template = None
 
     def load_template(self, template):            
         self.elements += template.elements
+        self.loaded_template = template
         self.canvasmaker = template.canvasmaker
 
     def build(self):
         """
-            Método para construir el PDF utilizando todos los elementos agregados al informe.
+        Método para construir el PDF utilizando todos los elementos agregados al informe.
         """
-        if self.canvasmaker:
-            self.template.multiBuild(self.elements, canvasmaker=self.canvasmaker)
-        else:
-            raise RuntimeError("The canvasmaker was not initialized so the program cannot compile the report.")
+        try:
+            if self.canvasmaker:
+                self.template.multiBuild(self.elements, canvasmaker=self.canvasmaker)
+            else:
+                raise RuntimeError("The canvasmaker was not initialized so the program cannot compile the report.")
+        finally:
+            if self.loaded_template:
+                self.loaded_template.stop_compiling.set()  # Detener la barra de progreso
+
+                # Esperar a que el hilo de la barra de progreso termine
+                if self.loaded_template.progress_thread is not None:
+                    self.loaded_template.progress_thread.join()
