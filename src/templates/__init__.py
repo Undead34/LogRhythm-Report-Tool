@@ -1,15 +1,13 @@
+from types import MappingProxyType
 from .general import GeneralTemplate
 
-class Templates():
-    def __init__(self, report, queries, database, metadata, config) -> None:
-        self.report, self.queries, self.db, self.metadata, self.config = report, queries, database, metadata, config
+class Templates:
+    def __init__(self, output_path: str, metadata: dict) -> None:
+        templates = {
+            "general": GeneralTemplate(output_path, metadata)
+        }
+        self._templates = MappingProxyType(templates)
 
-    def get_template(self, name):
-        template = GeneralTemplate(self.report, self.queries, self.db, self.metadata, self.config)
-
-        if name == "other": # example for some templates
-            pass # Remplaze template here!
-
-        template.run()
-
-        return template
+    @property
+    def templates(self):
+        return self._templates

@@ -10,18 +10,6 @@ PATH += f";{os.path.realpath('./driver')}"
 os.environ.setdefault("PATH", PATH)
 
 CHARTS_DIR = os.path.realpath("./output/charts")
-FONTS = [
-    ["OpenSans-Regular", "./assets/fonts/OpenSans-Regular.ttf"],
-    ["OpenSans-Bold", "./assets/fonts/OpenSans-Bold.ttf"],
-    ["Conthrax", "./assets/fonts/Conthrax.ttf"],
-
-    # Arial Narrow Font
-    ["Arial-Narrow", "./assets/fonts/Arial Narrow.ttf"],
-    ["Arial-Narrow-Italic", "./assets/fonts/Arial Narrow Italic.ttf"],
-    ["Arial-Narrow-Bold", "./assets/fonts/Arial Narrow Bold.ttf"],
-    ["Arial-Narrow-Bold-Italic", "./assets/fonts/Arial Narrow Bold Italic.ttf"]
-]
-
 TITLE = os.environ.get("TITLE", "Reporte")
 CLIENT = os.environ.get("CLIENT", "Cliente")
 

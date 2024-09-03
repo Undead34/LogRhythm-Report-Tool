@@ -11,8 +11,6 @@ from .cli.questions import (
 )
 
 from src.databases import MSQLServer, Elastic
-
-from .reports import skeleton
 from .templates import Templates
 
 from .utils.constants import DEFAULT_SIGNATURE
@@ -140,10 +138,7 @@ def run_main_program(args, config: Config):
     # Generate Report
     logger.info("Generando el reporte...")
 
-    report = skeleton.Report(config.output_file)
-    templates = Templates(report, queries, database, signature, config)
+    templates = Templates(output_path=config.output_file, metadata=signature)
+    templates.templates.get("general").build()
 
-    report.load_template(templates.get_template("general"))
-
-    report.build()
     print("✅ [Reporte generado]\nRuta de salida del archivo:", config.output_file)
