@@ -1,7 +1,20 @@
+from abc import ABC, abstractmethod
 from datetime import datetime
 import pandas as pd
 import uuid
 import os
+
+class Element(ABC):
+    className: str = None
+
+    def __init__(self) -> None:
+        super().__init__()
+        if type(self) is Element:
+            raise NotImplementedError("This class is not meant to be instantiated")
+
+    @abstractmethod
+    def render(self) -> 'ElementList':
+        pass
 
 class ElementList(list):
     def __iadd__(self, other):
