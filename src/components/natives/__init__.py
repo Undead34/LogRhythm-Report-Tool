@@ -2,20 +2,28 @@ from reportlab.platypus import Paragraph as NativeParagraph, Image as NativeImag
 
 from src.utils import Element
 
-class Paragraph(NativeParagraph, Element):
-    def __init__(self, text: str, className: str = "Paragraph", *args, **kwargs) -> None:
-        NativeParagraph.__init__(self, text, *args, **kwargs)
-        Element.__init__(self)
-        self.className = className
+class Paragraph(Element):
+    def __init__(self, text: str, className: list[str] | str, *args, **kwargs) -> None:
+        super().__init__()
+        self.args = args
+        self.kwargs = kwargs
+        self.text = text
 
-    def render(self):
-        return self
+        if isinstance(className, list):
+            if "paragraph" not in className:
+                className.append("paragraph")
+            self.className = className
+        else:
+            self.className = [className, "paragraph"]
+
+    def render(self, styles):
+        return NativeParagraph(self.text, style=styles, *self.args, **self.kwargs)
 
 class Image(NativeImage, Element):
     def __init__(self, *args, **kwargs) -> None:
         NativeImage.__init__(self, *args, **kwargs)
         Element.__init__(self)
-        self.className = "Image"
+        self.className = ["image"]
     
     def render(self):
         return self

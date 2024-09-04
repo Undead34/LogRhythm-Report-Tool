@@ -5,7 +5,7 @@ import uuid
 import os
 
 class Element(ABC):
-    className: str = None
+    className: list[str] = None
 
     def __init__(self) -> None:
         super().__init__()

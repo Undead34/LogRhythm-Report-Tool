@@ -1,9 +1,8 @@
 import os
 import shutil
-from enum import Enum
 from typing import List, Union, Any
 
-from reportlab.lib.colors import HexColor, white, black
+from reportlab.lib.colors import Color, HexColor, white, black
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY, TA_RIGHT
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle, ListStyle
@@ -14,36 +13,11 @@ from reportlab.pdfbase.ttfonts import TTFont
 from src.utils.constants import CHARTS_DIR
 from src.utils import ElementList, Element
 from src.templates.generic import GenericTheme
+from .text_styles import TEXT_STYLES
+
+from reportlab.platypus import Paragraph
 
 TElementList = List[Union[Element, str, Any]]
-
-class FontSize(Enum):
-    SMALL = 8
-    MEDIUM = 10
-    LARGE = 12
-    XLARGE = 14
-    XXLARGE = 16
-    XXXLARGE = 18
-
-class FontFamily(Enum):
-    OPEN_SANS = "OpenSans"
-    CONTHRAX = "Conthrax"
-    ARIAL_NARROW = "Arial-Narrow"
-
-class FontStyle(Enum):
-    REGULAR = "Regular"
-    BOLD = "Bold"
-    ITALIC = "Italic"
-    BOLD_ITALIC = "Bold-Italic"
-
-class ParagraphStyle(Enum):
-    TITLE = "Title"
-    SUBTITLE = "Subtitle"
-    HEADING = "Heading"
-    SUBHEADING = "Subheading"
-    BODY = "Body"
-    CAPTION = "Caption"
-    LIST = "List"
 
 class Theme(GenericTheme):
     pagesize: tuple = LETTER
@@ -64,14 +38,22 @@ class Theme(GenericTheme):
             ["Arial-Narrow-Bold-Italic", "./assets/fonts/Arial Narrow Bold Italic.ttf"]
         ]
 
+        self._register_fonts()
+
+    def _get_text_style(self, style: str) -> ParagraphStyle:
+        return TEXT_STYLES.get(style, None)
+
     def apply(self, elements: 'TElementList'):
-        for element in elements:
+        for i, element in enumerate(elements):
             if isinstance(element, Element):
-                if element.className == "Paragraph":
-                    # Apply style here
-                    pass
+                if "paragraph" in element.className:
+                    element.className.remove("paragraph")
+                    style = self._get_text_style(element.className[0])
+                    elements[i] = element.render(style)
             else:
                 pass
+
+        return elements
 
     def _register_fonts(self):
         try:
@@ -84,3 +66,5 @@ class Theme(GenericTheme):
         except Exception as e:
             print(f"Error loading fonts or creating folders: {e}")
             exit(1)
+
+
